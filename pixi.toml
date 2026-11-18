@@ -10,7 +10,7 @@ authors = ["Rhode, Sebastian <sebastian.rhode@zeiss.com>"]
 channels = ["conda-forge"]
 name = "pixi_smartmic"
 platforms = ["win-64", "linux-64"]
-version = "0.0.3"
+version = "0.0.4"
 description = "Microscopy workshop with CZI tools, Napari, ZEN API and optional NVIDIA GPU inference."
 
 [dependencies]
@@ -74,7 +74,7 @@ streamlit = "*"
 czitools = { version = ">=0.27.3", extras = ["all"] }
 napari-czitools = "*"
 napari-czann-segment = { version = "*", extras = ["cpu"] }
-napari-zenapi-streaming = { version = ">=0.0.3" }
+napari-zenapi-streaming = { version = ">=0.0.4" }
 napari-virtual-reader = { version = "*" }
 onnxruntime = "*"
 torch = { version = "*", index = "https://download.pytorch.org/whl/cpu" }
