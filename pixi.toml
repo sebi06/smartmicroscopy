@@ -1,7 +1,9 @@
-# Smart Microscopy workshop: one default CPU environment, no source checkouts.
+# Smart Microscopy workshop: default CPU and optional GPU, no source checkouts.
 # Distribute this manifest together with pixi.lock and the workshop examples.
 # Install: pixi install --locked
 # Launch:  pixi run --locked start-napari
+# GPU:     pixi install --locked -e napari-gpu
+# Launch:  pixi run --locked -e napari-gpu start-napari
 
 [workspace]
 authors = ["Rhode, Sebastian <sebastian.rhode@zeiss.com>"]
@@ -9,7 +11,7 @@ channels = ["conda-forge"]
 name = "pixi_smartmic"
 platforms = ["win-64", "linux-64"]
 version = "0.0.3"
-description = "CPU-only microscopy workshop with CZI tools, Napari and ZEN API."
+description = "Microscopy workshop with CZI tools, Napari, ZEN API and optional NVIDIA GPU inference."
 
 [dependencies]
 python = ">=3.12.16,<3.13"
@@ -72,7 +74,7 @@ streamlit = "*"
 czitools = { version = ">=0.27.3", extras = ["all"] }
 napari-czitools = "*"
 napari-czann-segment = { version = "*", extras = ["cpu"] }
-napari-zenapi-streaming = { version = ">=0.0.2" }
+napari-zenapi-streaming = { version = ">=0.0.3" }
 napari-virtual-reader = { version = "*" }
 onnxruntime = "*"
 torch = { version = "*", index = "https://download.pytorch.org/whl/cpu" }
@@ -153,5 +155,65 @@ args = [
     { arg = "output_dir", default = "results/translocation" },
 ]
 
+# Isolated application stack: do not inherit CPU ONNX Runtime or PyTorch.
+[feature.napari-gpu.dependencies]
+python = ">=3.12.16,<3.13"
+python-dateutil = ">=2.8,<3"
+qtpy = "*"
+imagecodecs = ">=2026.6.6"
+numpy = ">=2.5.3"
+scipy = "*"
+dask = "*"
+pandas = "<3"
+scikit-image = ">=0.26.0"
+matplotlib-base = ">=3.7.0"
+fsspec = "*"
+requests = "*"
+pyqtgraph = "*"
+colorlog = "*"
+tqdm = "*"
+
+[feature.napari-gpu.pypi-dependencies]
+zarr = ">=3.4.0"
+napari = ">=0.10.0"
+pyqt6 = ">=6.7,<6.10"
+napari-crop = "*"
+napari-layer-statistics = "*"
+napari-ome-zarr = ">=0.11.0"
+napari-skimage-regionprops = "*"
+napari-metadata = "*"
+ome-zarrpari = "*"
+czitools = { version = ">=0.27.3", extras = ["all"] }
+napari-czitools = "*"
+napari-virtual-reader = "*"
+napari-czann-segment = { version = "*", extras = ["gpu"] }
+# Match the reference workspace's plugin GPU extra: CUDA 12.4 / cuDNN 9.1.
+onnxruntime-gpu = { version = ">=1.19,<1.27", extras = ["cuda", "cudnn"] }
+nvidia-cuda-runtime-cu12 = "==12.4.127"
+nvidia-cuda-nvrtc-cu12 = "==12.4.127"
+nvidia-cublas-cu12 = "==12.4.5.8"
+nvidia-cudnn-cu12 = "==9.1.0.70"
+nvidia-cufft-cu12 = "==11.2.1.3"
+nvidia-curand-cu12 = "==10.3.5.147"
+nvidia-nvjitlink-cu12 = "==12.4.127"
+napari-zenapi-streaming = ">=0.0.3"
+zen_api = { url = "https://github.com/zeiss-microscopy/OAD/releases/download/v2026.07.1/zen_api-2026.7.1-py3-none-any.whl" }
+zen_api_utils = { url = "https://github.com/zeiss-microscopy/OAD/releases/download/zen-api-utils-v0.1.0/zen_api_utils-0.1.0-py3-none-any.whl" }
+pip-system-certs = "*"
+bioio = "*"
+bioio-czi = "*"
+bioio-ome-zarr = "*"
+bioio-tifffile = "*"
+bioio-ome-tiff = "*"
+bioio-imageio = "*"
+
+[feature.napari-gpu.activation]
+env = { QT_API = "pyqt6", PYQTGRAPH_QT_LIB = "PyQt6" }
+
+[feature.napari-gpu.tasks]
+check-install = { cmd = '''python -c "import napari, czitools, onnxruntime; from qtpy import QtCore; from pyqtgraph.Qt import QT_LIB; assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'Expected CUDA-enabled ONNX Runtime'; assert QT_LIB == 'PyQt6', 'Expected PyQt6'; print('GPU imports OK; ONNX Runtime', onnxruntime.__version__, '; Qt', QtCore.qVersion())"''', description = "Check GPU application imports and CUDA provider availability (not a hardware inference test)" }
+start-napari = { cmd = "python -m napari", description = "Open napari with plugins and NVIDIA GPU inference" }
+
 [environments]
 default = { features = [] }
+napari-gpu = { features = ["napari-gpu"], no-default-feature = true }

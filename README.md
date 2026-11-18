@@ -12,8 +12,9 @@ Offline copies are included in [presentation/](presentation/). Keep the
 
 ## Workshop Environment
 
-The Pixi workspace is named `pixi_smartmic`. It provides one `default`
-environment using Python 3.12 and CPU inference on Windows or Linux.
+The Pixi workspace is named `pixi_smartmic`. Its `default` environment
+uses Python 3.12 and CPU inference on Windows or Linux. An optional isolated
+`napari-gpu` environment provides NVIDIA GPU inference in napari.
 No local repository checkouts or editable installations are needed.
 
 ## Quick Start
@@ -37,6 +38,29 @@ steps below. For individual examples, see
 [deep learning](examples/deep_learning/README.md),
 [translocation](examples/translocation/README.md), and
 [ZEN control](examples/control_zen_via_zenapi/README.md).
+
+### Optional NVIDIA GPU Environment
+
+From the repository directory, run:
+
+```text
+pixi install --locked -e napari-gpu
+pixi run --locked -e napari-gpu check-install
+pixi run --locked -e napari-gpu start-napari
+```
+
+This installs the napari application stack with `napari-czann-segment[gpu]`,
+ONNX Runtime GPU `>=1.19,<1.27`, CUDA 12.4 runtime wheels, and cuDNN 9.1,
+matching the GPU runtime constraints in the development workspace. A compatible
+NVIDIA GPU and driver are required; the runtime wheels do not install a driver.
+`check-install` checks imports and CUDA provider availability, not actual GPU
+inference.
+
+The GPU environment does not inherit the default CPU ONNX Runtime or CPU
+PyTorch packages and does not replace the full workshop environment. Continue
+using the default environment for notebooks and the other workshop tasks.
+Installing it does not modify the default environment; always select it
+explicitly with `-e napari-gpu`.
 
 ## Participant Setup
 
