@@ -240,6 +240,12 @@ argument supports datasets in a subfolder; it does not move existing files.
 - **Command not found:** Reopen your terminal after installing Git or Pixi
     and check `git --version` and `pixi --version` again.
 - **Cannot find `pixi.toml`:** Change into the cloned workshop directory.
+- **Missing Python interpreter or DLLs:** If installation reports that
+    `.pixi/envs/default/python.exe` is missing, or Python cannot import `_ssl`
+    or `_ctypes`, the generated environment may be incomplete. Close kernels
+    and applications using it, run `pixi reinstall --locked`, then verify with
+    `pixi install --locked` and `pixi run --locked check-install`.
+    Keep the existing manifest and lockfile; do not copy in another Python.
 - **Environment directory has moved:** Pixi environments are not relocatable.
     Close kernels and applications using this workshop environment, remove only
     `.pixi/envs/default/` from the renamed repository, then run
@@ -327,6 +333,33 @@ An optional second argument selects another output directory. The sample-opening
 uses the installed napari-czitools sample provider, not a repository script.
 ZEN streaming requires a compatible running ZEN installation, API access,
 and connection settings appropriate to the workshop microscope.
+
+### Configure the ZEN Streaming Plugin
+
+Before first use, create the plugin's user-owned gateway configuration:
+
+```powershell
+pixi run --locked python -m napari_zen_streaming.ZEN_config --init
+```
+
+On Windows, this creates
+`%APPDATA%\napari-zenapi-streaming\config.ini` without overwriting an existing
+file. Edit its gateway host, ports, control token, and trusted certificate path
+for your ZEN system before connecting. Keep tokens out of this repository.
+Initialization creates a template; it does not configure or test the microscope.
+
+To use an existing gateway configuration instead, set its path in the same
+PowerShell session before launching napari:
+
+```powershell
+$env:ZEN_CONFIG_FILE = "C:\path\to\your\config.ini"
+pixi run --locked start-napari
+```
+
+If the plugin reports `Config file not found`, initialize the default file or
+correct `ZEN_CONFIG_FILE`, then close and reopen its dock widget (or restart
+napari). This is plugin-specific setup, not a missing Python dependency; no
+environment reinstall is needed. General CZI viewing does not require ZEN access.
 
 ### Stream a ZEN Experiment to OME-Zarr from Windows CMD
 

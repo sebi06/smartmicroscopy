@@ -8,7 +8,7 @@ authors = ["Rhode, Sebastian <sebastian.rhode@zeiss.com>"]
 channels = ["conda-forge"]
 name = "pixi_smartmic"
 platforms = ["win-64", "linux-64"]
-version = "0.0.2"
+version = "0.0.3"
 description = "CPU-only microscopy workshop with CZI tools, Napari and ZEN API."
 
 [dependencies]
@@ -72,7 +72,7 @@ streamlit = "*"
 czitools = { version = ">=0.27.3", extras = ["all"] }
 napari-czitools = "*"
 napari-czann-segment = { version = "*", extras = ["cpu"] }
-napari-zenapi-streaming = { version = "*" }
+napari-zenapi-streaming = { version = ">=0.0.2" }
 napari-virtual-reader = { version = "*" }
 onnxruntime = "*"
 torch = { version = "*", index = "https://download.pytorch.org/whl/cpu" }
