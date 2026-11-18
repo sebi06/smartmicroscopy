@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Five interactive slides explaining ZEN API contract generation, Python packaging, gRPC calls, and clients in Java and other languages.">
+<meta name="description" content="Six interactive slides explaining ZEN API contract generation, Python packaging, gRPC benefits, pixel streaming, and clients in Java and other languages.">
 <title>ZEN API: from C# to Python and beyond</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f172a'/%3E%3Cpath d='M18 40V24l14-8 14 8v16l-14 8-14-8Z' fill='none' stroke='%23fbbf24' stroke-width='4' stroke-linejoin='round'/%3E%3Ccircle cx='32' cy='32' r='5' fill='%2338bdf8'/%3E%3C/svg%3E">
 <script>document.documentElement.classList.add('js');</script>
@@ -482,6 +482,17 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
 .responses { display:flex; gap:8px; flex-wrap:wrap; }
 .stream-only { display:none; }
 [data-mode="stream"] .stream-only { display:block; }
+[data-mode="stream"] .unary-only { display:none; }
+.benefits { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.benefit { border:1px solid var(--border-bright); padding:18px; background:var(--surface); }
+.benefit h3 { margin:0 0 8px; font-size:24px; color:var(--accent); }
+.benefit p { margin:0; }
+.pixel-transport svg { max-height:34dvh; }
+.pixel-slide figure { flex-shrink:0; }
+.connection-details { font-size:18px; }
+.connection-details summary { cursor:pointer; color:var(--info); }
+.connection-details[open] { position:absolute; inset:auto 24px 48px; z-index:110; padding:16px; max-height:65dvh; overflow:auto; background:var(--surface); border:1px solid var(--border-bright); }
+.connection-details .sources { margin-top:12px; }
 .guardrails { padding-left:24px; margin:0; display:grid; gap:14px; }
 .guardrails li { padding-left:4px; }
 .sources { margin:0; color:var(--text-dim); font-size:18px !important; }
@@ -519,6 +530,9 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
   .response-lane { grid-template-columns:1fr 30px 1.3fr; }
   .response-lane .service { padding:12px; font-size:20px; }
   .slide__label { font-size:18px; }
+  .benefits { grid-template-columns:1fr; gap:10px; }
+  .benefit { padding:12px; }
+  .benefit h3 { font-size:20px; margin-bottom:4px; }
 }
 @media(max-height:500px) { .slide__label { display:none; } .deck .slide { padding-block:14px 32px; } }
 @media print {
@@ -635,6 +649,19 @@ message GetFolderReply {
 </figure>
 </section>
 <section class="slide" id="slide-4">
+<p class="slide__label">Why gRPC / less connection code</p>
+<h2 class="slide__heading">Why use gRPC with ZEN?</h2>
+<figure>
+<div class="benefits">
+<div class="benefit"><h3>Use the language you know</h3><p>Python and Java share one contract. ZEN stays in C#.</p></div>
+<div class="benefit"><h3>Receive frames as they arrive</h3><p>Subscribe once; receive pixels without requesting every frame.</p></div>
+<div class="benefit"><h3>Send pixels as binary data</h3><p>Pixel bytes become image arrays, without long text lists.</p></div>
+<div class="benefit"><h3>Write less communication code</h3><p>Generated clients pack messages. gRPC reports errors your app can handle.</p></div>
+</div>
+<figcaption>Fig. 4. gRPC supplies shared communication rules, not image analysis or guaranteed real-time speed.</figcaption>
+</figure>
+</section>
+<section class="slide" id="slide-5">
 <p class="slide__label">One contract / different client toolchains</p>
 <h2 class="slide__heading">Change the language, not the ZEN server.</h2>
 <figure>
@@ -651,39 +678,61 @@ message GetFolderReply {
 <div class="box"><h3>Use the client</h3><p id="language-use">Install the matching wheel and use the grpclib-based channel.</p></div>
 </div>
 <p class="language-note keyline" id="language-note">The Python package uses betterproto-generated code. zen_api_utils is a separate helper package, not the generated API.</p>
-<figcaption>Fig. 4. The same .proto contract can generate Java, C#, Go, C++, and other compatible clients; packaging follows each ecosystem.</figcaption>
+<figcaption>Fig. 5. The same .proto contract can generate Java, C#, Go, C++, and other compatible clients; packaging follows each ecosystem.</figcaption>
 </figure>
 <p class="slide__body">Java and .NET illustrate the general gRPC process, not a promise of officially distributed ZEN client packages.</p>
 </section>
-<section class="slide" id="slide-5">
-<p class="slide__label">Using the API / what the contract guarantees</p>
+<section class="slide pixel-slide" id="slide-6">
+<p class="slide__label">gRPC / pixel transport</p>
 <h2 class="slide__heading">One call can return one reply or a stream.</h2>
 <figure>
-<div class="split">
-<div>
 <div class="mode-controls" role="group" aria-label="Response pattern">
-<button type="button" data-rpc-mode="unary" aria-pressed="true">Unary call</button>
-<button type="button" data-rpc-mode="stream" aria-pressed="false">Server stream</button>
+<button type="button" data-rpc-mode="unary" aria-pressed="false">Unary call</button>
+<button type="button" data-rpc-mode="stream" aria-pressed="true">Pixel stream</button>
 </div>
-<div class="response-lane" id="response-lane" data-mode="unary" aria-label="Illustrative server response pattern">
+<div id="response-lane" data-mode="stream" aria-label="Illustrative server response pattern">
+<div class="unary-only">
+<div class="response-lane">
 <div class="service">ZEN service</div><div class="arrow">sends<br>&#8594;</div>
-<div class="responses"><span class="reply">reply 1</span><span class="reply stream-only">reply 2</span><span class="reply stream-only">reply ...</span></div>
+<div class="responses"><span class="reply">one folder reply</span></div>
 </div>
-<p id="response-caption" aria-live="polite">Unary: one request, one response. Example: query the image output folder.</p>
 </div>
-<ul class="guardrails">
-<li>Match the client contract to the running server's supported capabilities.</li>
-<li>Configure the gateway endpoint, trusted certificate, and authentication.</li>
-<li>Handle deadlines, errors, and cancellation; network calls are not local calls.</li>
-</ul>
+<div class="stream-only diagram-shell pixel-transport" tabindex="0" aria-label="One subscription carries successive pixel messages to Python">
+<svg viewBox="0 0 1080 290" role="img" aria-labelledby="pixel-title pixel-description">
+<title id="pixel-title">Subscribe once, receive pixel messages while ZEN acquires</title>
+<desc id="pixel-description">Python sends one subscription to ZEN. ZEN sends successive messages containing pixel bytes and metadata over the same streaming call. Python validates the byte count and reshapes each payload into a NumPy array for optional processing and display. Frames shown here are illustrative; raw-data mode can send partial frames.</desc>
+<defs>
+<marker id="pixel-out" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M1 1L11 6L1 11Z" fill="var(--info)"/></marker>
+<marker id="pixel-in" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M1 1L11 6L1 11Z" fill="var(--accent)"/></marker>
+</defs>
+<path class="edge" d="M965 65V30H110V65" marker-end="url(#pixel-in)"/>
+<text class="sub" x="540" y="21" text-anchor="middle">Python subscribes once</text>
+<rect class="node server" x="10" y="75" width="200" height="80"/>
+<text x="110" y="108" text-anchor="middle">ZEN acquisition</text><text class="sub" x="110" y="136" text-anchor="middle">produces pixels</text>
+<path class="return" d="M210 155V180H965V155" marker-end="url(#pixel-out)"/>
+<text class="sub" x="490" y="207" text-anchor="middle">sends successive messages on the same call</text>
+<rect class="node" x="255" y="75" width="175" height="80"/><text x="342" y="108" text-anchor="middle">Frame A</text><text class="sub" x="342" y="136" text-anchor="middle">bytes + metadata</text>
+<rect class="node" x="455" y="75" width="175" height="80"/><text x="542" y="108" text-anchor="middle">Frame B</text><text class="sub" x="542" y="136" text-anchor="middle">bytes + metadata</text>
+<rect class="node" x="655" y="75" width="175" height="80"/><text x="742" y="108" text-anchor="middle">Frame C ...</text><text class="sub" x="742" y="136" text-anchor="middle">bytes + metadata</text>
+<rect class="node" x="860" y="75" width="210" height="80"/><text x="965" y="108" text-anchor="middle">Python receiver</text><text class="sub" x="965" y="136" text-anchor="middle">validates payload</text>
+<path class="return" d="M965 183V240H815" marker-end="url(#pixel-out)"/>
+<text class="sub" x="925" y="276" text-anchor="middle">decodes + reshapes</text>
+<rect class="node" x="420" y="225" width="385" height="50"/><text x="612" y="258" text-anchor="middle">NumPy array per payload</text>
+</svg>
 </div>
-<figcaption>Fig. 5. The method's .proto declaration fixes its response pattern; this switch compares two method types, not a runtime API option.</figcaption>
+</div>
+<p id="response-caption" aria-live="polite">Pixel bytes + size, position, and scaling become a Python array for optional processing and display.</p>
+<figcaption>Fig. 6. The switch compares methods, not settings. Streams end on completion, cancellation, or error; raw-data mode can send partial frames.</figcaption>
 </figure>
+<details class="connection-details">
+<summary>Connection checklist and sources</summary>
+<p class="sources">Use a matching client contract, the required endpoint, trusted certificate, and authentication. Handle deadlines, errors, and cancellation.</p>
 <p class="sources">Conceptual simulation only: no connection to ZEN and no microscope commands.<br>
 Sources: <a href="smart-microscopy-zen.html#contracts">original figure and context</a> ·
 <a href="https://github.com/zeiss-microscopy/OAD/tree/master/ZEN-API">ZEN API overview</a> ·
 <a href="https://github.com/sebi06/ZEN_API/tree/main/packaging">Python generation and packaging</a> ·
 <a href="https://grpc.io/docs/what-is-grpc/introduction/">gRPC introduction</a></p>
+</details>
 </section>
 </main>
 <script>
@@ -761,7 +810,7 @@ document.querySelectorAll('[data-rpc-mode]').forEach(button => {
     document.querySelectorAll('[data-rpc-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
     document.getElementById('response-lane').dataset.mode = streaming ? 'stream' : 'unary';
     document.getElementById('response-caption').textContent = streaming
-      ? 'Server streaming: one subscription request, then zero or more messages until completion or error. Example: status updates.'
+      ? 'Pixel bytes + size, position, and scaling become a Python array for optional processing and display.'
       : 'Unary: one request, one response. Example: query the image output folder.';
   });
 });
