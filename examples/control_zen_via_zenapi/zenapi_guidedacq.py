@@ -53,9 +53,10 @@ else:
 
 from workshop_utils import initialize_workshop
 
+# Initialize the workshop environment and get the relevant directories.
 workshop_root, project_dir, data_dir, model_dir = initialize_workshop("control_zen_via_zenapi")
 
-
+# Define the type for the region of interest in the guided acquisition.
 RegionType = Literal["polygon", "rectangle", "ellipse"]
 
 
@@ -494,5 +495,5 @@ if __name__ == "__main__":
     # create logger
     logger = set_logging()
 
-    # run the main function
+    # run the main function with the specified options
     asyncio.run(main(move_results=True, show_summary_plot=True, load_overview=True))

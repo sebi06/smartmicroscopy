@@ -20,6 +20,7 @@ else:
 
 from workshop_utils import initialize_workshop
 
+# Initialize the workshop environment and get the relevant directories.
 workshop_root, project_dir, data_dir, model_dir = initialize_workshop("control_zen_via_zenapi")
 
 # PyQtGraph and ONNX Runtime can both load OpenMP. On Windows, loading more
@@ -75,6 +76,7 @@ pg.setConfigOption("imageAxisOrder", "row-major")
 logger = set_logging()
 
 
+# Define the processing modes available for incoming ZEN frames.
 @unique
 class Processing(Enum):
     NO_PROCESSING = 1
@@ -124,11 +126,13 @@ async def start_experiment(
             for exp in available_experiments.experiments:
                 logger.info(exp.name + ".czexp")
 
+        # Load the specified experiment into ZEN.
         my_exp = await exp_service.load(ExperimentServiceLoadRequest(experiment_name=exp_name))
 
         save_path = await exp_service.get_image_output_path(ExperimentServiceGetImageOutputPathRequest())
         logger.info("Saving Location for CZI Images:" + save_path.image_output_path)
 
+        # Construct the full output path for the CZI image.
         output_path = Path(save_path.image_output_path) / (czi_name + ".czi")
         if output_path.exists():
             if overwrite:
@@ -372,6 +376,8 @@ class MainWindow(pg.Qt.QtWidgets.QMainWindow):
         if not self.start_experiment_from_UI:
             if self.expID is None:
                 raise RuntimeError("The experiment must be started before monitoring its pixel stream")
+
+            # Choose the server-streaming RPC for an API-controlled experiment.
             async_iterable = self.streaming_service.monitor_experiment(
                 ExperimentStreamingServiceMonitorExperimentRequest(
                     experiment_id=self.expID,
@@ -381,6 +387,9 @@ class MainWindow(pg.Qt.QtWidgets.QMainWindow):
             )
             logger.info("Getting PixelStream from Experiment started by ZEN API")
 
+        # One stream yields successive messages, not multiple streams.
+        # Waiting for the next message yields to the event loop; synchronous
+        # processing inside this loop still blocks it.
         async for response in async_iterable:
             # A monotonic clock is used for throttling because it is not
             # affected when the computer's wall clock changes.
