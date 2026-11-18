@@ -77,7 +77,7 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
 <img class="brand" src="assets/zeiss.png" width="55" height="54" alt="ZEISS">
 </div>
 <h1>Stream a frame.<br>Process it before display.</h1>
-<p class="lead">Receive pixels while ZEN acquires. Decode them into a NumPy array, optionally process that array, and update the live view.</p>
+<p class="lead">Receive pixels while ZEN acquires. Decode them into a NumPy array. Segmentation adds optional boxes to the original frame; denoising displays a new image.</p>
 </header>
 <figure id="stream-flow" data-processing="off">
 <div class="controls">
@@ -94,7 +94,7 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
 <div class="flow-scroll" tabindex="0" aria-label="Streaming flowchart; scroll horizontally on small screens">
 <svg viewBox="0 0 1120 570" role="img" aria-labelledby="flow-title flow-description">
 <title id="flow-title">Online processing is an optional step between NumPy decoding and live display</title>
-<desc id="flow-description">ZEN acquires and publishes pixel frames with metadata through gRPC. Python validates the payload and creates a 2D NumPy array. A processing branch can segment or denoise each array. Raw or processed results replace the pending display frame. A Qt timer takes the newest result and refreshes the PyQtGraph view.</desc>
+<desc id="flow-description">ZEN acquires and publishes pixel frames with metadata through gRPC. Python validates the payload and creates a 2D NumPy array. Segmentation uses an internal mask to measure objects, then queues the original frame with optional bounding-box measurements. Denoising instead queues its output image. A Qt timer takes the newest image and measurements and refreshes the PyQtGraph view.</desc>
 <defs>
 <marker id="flow-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M1 1L11 6L1 11Z" fill="context-stroke"/></marker>
 </defs>
@@ -107,7 +107,7 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
 <path class="route processed-route" d="M835 275H675" marker-end="url(#flow-arrow)"/>
 <text class="sub" x="745" y="252" text-anchor="middle">yes</text>
 <path class="route processed-route" d="M540 320V380H925V420" marker-end="url(#flow-arrow)"/>
-<text class="sub" x="722" y="365" text-anchor="middle">queue result</text>
+<text class="sub" x="722" y="365" text-anchor="middle">queue image + box data</text>
 <path class="edge raw-route" d="M925 330V420" marker-end="url(#flow-arrow)"/>
 <text class="sub" x="1032" y="390" text-anchor="middle">no / raw frame</text>
 <path class="edge" d="M800 475H675" marker-end="url(#flow-arrow)"/>
@@ -147,29 +147,33 @@ code { font-family:var(--font-mono); overflow-wrap:anywhere; }
 <figcaption><span class="fig-n">Fig. 1</span>Online processing is a client-side branch after decoding, not a change to the gRPC stream or ZEN's acquisition implementation. The selector illustrates configuration choices; it does not connect to a microscope.</figcaption>
 </figure>
 <section id="processing">
-<h2>Add processing where the frame is already an array.</h2>
+<h2>Segmentation finds objects; the view shows original pixels and optional boxes.</h2>
 <figure>
 <div class="split">
-<div class="code-scroll" tabindex="0" aria-label="Otsu segmentation inside the receive loop"><pre>ap = ArrayProcessor(stream2d)
-mask = ap.apply_otsu_threshold()
-labels, count, props = ArrayProcessor(mask).label_objects(
+<div class="code-scroll" tabindex="0" aria-label="Otsu path: segment internally, then queue original pixels and optional box measurements"><pre>ap = ArrayProcessor(stream2d)
+pro2d = ap.apply_otsu_threshold()
+ap = ArrayProcessor(pro2d)
+pro2d, num_objects, props = ap.label_objects(
     max_size_remove=100,
     label_rgb=False,
+    orig_image=None,
+    bg_label=0,
     measure_params=True,
     measure_properties=measure_properties,
 )
-self.queue_display(stream2d, props)</pre></div>
+self.queue_display(stream2d, props if draw_bbox else None)</pre></div>
 <ol class="steps">
-<li><strong>Start with an existing mode.</strong><p>Choose Otsu, manual thresholding, semantic segmentation, or denoising through <code>Processing</code>.</p></li>
-<li><strong>Keep the transport unchanged.</strong><p><code>ArrayProcessor</code> consumes a decoded 2D frame. A custom algorithm belongs at the same point in <code>read()</code>.</p></li>
-<li><strong>Queue what the view needs.</strong><p>Segmentation queues the original pixels plus object measurements for boxes. Denoising queues the model output.</p></li>
+<li><strong>Segment the frame internally.</strong><p>Otsu creates a mask in <code>pro2d</code>. Labeling finds objects and calculates their measurements in <code>props</code>.</p></li>
+<li><strong>Queue the original pixels, not the mask.</strong><p><code>stream2d</code> remains the display image. <code>draw_bbox=True</code> includes the measurements; <code>False</code> passes no box data.</p></li>
+<li><strong>Overlay boxes at the display timer tick.</strong><p><code>_display_pending_frame()</code> updates the original image, then <code>update_bounding_boxes(props)</code> adds or updates rectangle overlays. With no box data, it removes old overlays.</p></li>
 </ol>
 </div>
-<figcaption><span class="fig-n">Fig. 2</span>The Otsu path already exists in the example; adding a custom algorithm requires Python processing code, not a new server API. The excerpt assumes decoding has completed inside <code>read()</code>.</figcaption>
+<figcaption><span class="fig-n">Fig. 2</span>Otsu path excerpt after decoding inside <code>read()</code>: mask and labels stay internal; the GUI displays the original frame with bounding boxes only when <code>draw_bbox=True</code>. Manual and semantic segmentation use the same display path. Denoising instead displays its output image.</figcaption>
 </figure>
 <div class="boundary-note">
 <strong>Models need setup; simple thresholds do not.</strong>
 <p>Semantic segmentation and denoising require the matching CZANN model and inference dependencies. The example creates one reusable ONNX inferencer before receiving frames; semantic tiled inference is not implemented here.</p>
+<p>A custom algorithm fits at the same point in <code>read()</code>: keep the gRPC transport unchanged and queue the image and optional measurements the view needs.</p>
 </div>
 </section>
 <section id="display">
