@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How ZEN API streams pixels into Python, where online processing fits, and how the streaming example keeps the live display current.">
+<title>ZEN API streaming: add online processing between frame and view</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>
+main { max-width:1200px; margin-inline:auto; padding:var(--s-5); }
+header { padding-block:var(--s-5) var(--s-3); }
+.masthead { display:flex; justify-content:space-between; align-items:flex-start; gap:var(--s-5); }
+.brand { display:block; width:55px; height:54px; flex:none; margin:0; border:0; }
+.eyebrow { margin:0 0 var(--s-3); color:var(--accent); font:500 var(--t-small)/1.3 var(--font-mono); }
+h1 { max-width:23ch; margin:0 0 var(--s-4); font-size:clamp(2rem,4.4vw,3.8rem); line-height:1.08; }
+h2 { font-size:var(--t-h2); line-height:1.2; margin:0 0 var(--s-4); }
+h3 { font-size:var(--t-h3); margin:0 0 var(--s-3); }
+.lead { max-width:65ch; margin:0; font-size:var(--t-h3); color:var(--text-dim); }
+section { margin-top:var(--s-7); padding-top:var(--s-5); border-top:1px solid var(--border); }
+figure { margin:0; }
+figcaption { margin-top:var(--s-4); color:var(--text-dim); font-size:var(--t-small); line-height:1.5; }
+.controls { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s-3); padding-block:var(--s-4); }
+.controls label { font-weight:600; }
+select { max-width:100%; padding:var(--s-2) var(--s-3); border:1px solid var(--border-bright); border-radius:var(--r-1); background:var(--surface); color:var(--text); font:inherit; }
+select:focus-visible,a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.flow-scroll { overflow:auto; border:1px solid var(--border); background:var(--stage); }
+.flow-scroll svg { width:100%; min-width:760px; display:block; }
+svg text { fill:var(--text); font:500 24px var(--font-body); }
+svg .sub { fill:var(--text-dim); font:400 18px var(--font-body); }
+svg .node { fill:var(--surface); stroke:var(--border-bright); stroke-width:2; }
+svg .edge { stroke:var(--text-dim); stroke-width:2; fill:none; }
+svg .online { stroke:var(--accent); stroke-width:3; stroke-dasharray:8 6; }
+svg .online-title { fill:var(--accent); }
+svg .route { stroke:var(--accent); stroke-width:3; fill:none; }
+svg .processed-route { stroke-dasharray:7 5; }
+svg .raw-route { stroke:var(--info); stroke-width:3; }
+[data-processing="on"] .processed-route { stroke-dasharray:none; stroke-width:4; }
+[data-processing="on"] .online { stroke-dasharray:none; }
+[data-processing="on"] .raw-route { stroke:var(--text-dim); stroke-width:2; stroke-dasharray:5 5; }
+[data-processing="off"] .processed-route { stroke:var(--text-dim); stroke-width:2; }
+.mode-detail { display:grid; grid-template-columns:1fr 1.4fr; gap:var(--s-5); margin-top:var(--s-4); padding:var(--s-4); border:1px solid var(--border-bright); background:var(--surface); }
+.mode-detail p { margin:0; }
+.mode-detail code { display:block; margin-top:var(--s-2); overflow-wrap:anywhere; }
+.status { color:var(--accent); font:500 var(--t-small)/1.4 var(--font-mono); }
+.split { display:grid; grid-template-columns:1.15fr 1fr; gap:var(--s-5); align-items:start; }
+.split > * { min-width:0; }
+.code-scroll { overflow:auto; padding:var(--s-4); background:var(--surface); border:1px solid var(--border-bright); }
+pre { margin:0; font:400 var(--t-small)/1.6 var(--font-mono); }
+code { font-family:var(--font-mono); overflow-wrap:anywhere; }
+.steps { margin:0; padding-left:var(--s-5); }
+.steps li { padding-left:var(--s-2); margin-bottom:var(--s-4); }
+.steps strong { display:block; }
+.steps p { margin:var(--s-2) 0 0; color:var(--text-dim); }
+.boundary-note { padding:var(--s-4); margin-top:var(--s-4); background:var(--surface); border:1px solid var(--border-bright); }
+.boundary-note p { margin:var(--s-2) 0 0; }
+.timeline svg { width:100%; min-width:720px; display:block; }
+.timeline { overflow:auto; }
+.sources { margin-block:var(--s-6); font-size:var(--t-small); color:var(--text-dim); }
+.sources p { margin-block:var(--s-3); }
+.sources a { color:inherit; text-underline-offset:.2em; }
+@media(max-width:760px) {
+  main { padding:var(--s-4); }
+  .brand { width:44px; height:auto; }
+  .split,.mode-detail { grid-template-columns:1fr; }
+  .masthead { gap:var(--s-3); }
+  .eyebrow { max-width:22ch; }
+  h1 { font-size:2rem; }
+}
+@media print { select { display:none; } .flow-scroll svg,.timeline svg { min-width:0; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="masthead">
+<p class="eyebrow">ZEN API / live pixels / Python</p>
+<img class="brand" src="assets/zeiss.png" width="55" height="54" alt="ZEISS">
+</div>
+<h1>Stream a frame.<br>Process it before display.</h1>
+<p class="lead">Receive pixels while ZEN acquires. Decode them into a NumPy array, optionally process that array, and update the live view.</p>
+</header>
+<figure id="stream-flow" data-processing="off">
+<div class="controls">
+<label for="processing-mode">Online Processing</label>
+<select id="processing-mode">
+<option value="raw" selected>Off - show raw pixels</option>
+<option value="otsu">On - Otsu segmentation</option>
+<option value="manual">On - manual-threshold segmentation</option>
+<option value="semantic">On - semantic segmentation</option>
+<option value="denoise">On - model-based denoising</option>
+</select>
+<span class="status" id="route-status" aria-live="polite">Current script default: processing off</span>
+</div>
+<div class="flow-scroll" tabindex="0" aria-label="Streaming flowchart; scroll horizontally on small screens">
+<svg viewBox="0 0 1120 570" role="img" aria-labelledby="flow-title flow-description">
+<title id="flow-title">Online processing is an optional step between NumPy decoding and live display</title>
+<desc id="flow-description">ZEN acquires and publishes pixel frames with metadata through gRPC. Python validates the payload and creates a 2D NumPy array. A processing branch can segment or denoise each array. Raw or processed results replace the pending display frame. A Qt timer takes the newest result and refreshes the PyQtGraph view.</desc>
+<defs>
+<marker id="flow-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M1 1L11 6L1 11Z" fill="context-stroke"/></marker>
+</defs>
+<path class="edge" d="M280 112H405" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="347" y="95" text-anchor="middle">publishes</text>
+<path class="edge" d="M665 112H790" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="732" y="95" text-anchor="middle">decodes</text>
+<path class="edge" d="M925 160V210" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="824" y="197" text-anchor="middle">select mode</text>
+<path class="route processed-route" d="M835 275H675" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="745" y="252" text-anchor="middle">yes</text>
+<path class="route processed-route" d="M540 320V380H925V420" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="722" y="365" text-anchor="middle">queue result</text>
+<path class="edge raw-route" d="M925 330V420" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="1032" y="390" text-anchor="middle">no / raw frame</text>
+<path class="edge" d="M800 475H675" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="738" y="452" text-anchor="middle">takes latest</text>
+<path class="edge" d="M415 475H290" marker-end="url(#flow-arrow)"/>
+<text class="sub" x="352" y="452" text-anchor="middle">refreshes</text>
+<rect class="node" x="30" y="65" width="250" height="95"/>
+<text x="155" y="105" text-anchor="middle">ZEN acquisition</text>
+<text class="sub" x="155" y="135" text-anchor="middle">UI or API startup</text>
+<rect class="node" x="415" y="65" width="250" height="95"/>
+<text x="540" y="105" text-anchor="middle">gRPC PixelStream</text>
+<text class="sub" x="540" y="135" text-anchor="middle">pixels + metadata</text>
+<rect class="node" x="800" y="65" width="250" height="95"/>
+<text x="925" y="105" text-anchor="middle">2D NumPy array</text>
+<text class="sub" x="925" y="135" text-anchor="middle">check bytes + reshape</text>
+<path class="node" d="M925 220L1015 275L925 330L835 275Z"/>
+<text x="925" y="282" text-anchor="middle">Process?</text>
+<rect class="node online" x="415" y="230" width="250" height="90"/>
+<text class="online-title" x="540" y="268" text-anchor="middle">Online Processing</text>
+<text class="sub" id="processing-node-label" x="540" y="298" text-anchor="middle">optional / bypassed</text>
+<rect class="node" x="800" y="430" width="250" height="90"/>
+<path class="edge" d="M817 449V501M825 449V501M833 449V501"/>
+<text x="940" y="468" text-anchor="middle">Newest frame</text>
+<text class="sub" x="940" y="496" text-anchor="middle">one display slot</text>
+<rect class="node" x="415" y="430" width="250" height="90"/>
+<text x="540" y="468" text-anchor="middle">Qt display timer</text>
+<text class="sub" x="540" y="496" text-anchor="middle">not the receive loop</text>
+<rect class="node" x="30" y="430" width="250" height="90"/>
+<text x="155" y="468" text-anchor="middle">PyQtGraph view</text>
+<text class="sub" x="155" y="496" text-anchor="middle">image + optional boxes</text>
+</svg>
+</div>
+<div class="mode-detail">
+<div><p class="status">Choose an existing processing mode</p><code id="mode-code">processing = Processing.NO_PROCESSING</code></div>
+<p id="mode-explanation" aria-live="polite">Raw mode queues the decoded frame and clears old object overlays. Change the selector to see where processing plugs in.</p>
+</div>
+<figcaption><span class="fig-n">Fig. 1</span>Online processing is a client-side branch after decoding, not a change to the gRPC stream or ZEN's acquisition implementation. The selector illustrates configuration choices; it does not connect to a microscope.</figcaption>
+</figure>
+<section id="processing">
+<h2>Add processing where the frame is already an array.</h2>
+<figure>
+<div class="split">
+<div class="code-scroll" tabindex="0" aria-label="Otsu segmentation inside the receive loop"><pre>ap = ArrayProcessor(stream2d)
+mask = ap.apply_otsu_threshold()
+labels, count, props = ArrayProcessor(mask).label_objects(
+    max_size_remove=100,
+    label_rgb=False,
+    measure_params=True,
+    measure_properties=measure_properties,
+)
+self.queue_display(stream2d, props)</pre></div>
+<ol class="steps">
+<li><strong>Start with an existing mode.</strong><p>Choose Otsu, manual thresholding, semantic segmentation, or denoising through <code>Processing</code>.</p></li>
+<li><strong>Keep the transport unchanged.</strong><p><code>ArrayProcessor</code> consumes a decoded 2D frame. A custom algorithm belongs at the same point in <code>read()</code>.</p></li>
+<li><strong>Queue what the view needs.</strong><p>Segmentation queues the original pixels plus object measurements for boxes. Denoising queues the model output.</p></li>
+</ol>
+</div>
+<figcaption><span class="fig-n">Fig. 2</span>The Otsu path already exists in the example; adding a custom algorithm requires Python processing code, not a new server API. The excerpt assumes decoding has completed inside <code>read()</code>.</figcaption>
+</figure>
+<div class="boundary-note">
+<strong>Models need setup; simple thresholds do not.</strong>
+<p>Semantic segmentation and denoising require the matching CZANN model and inference dependencies. The example creates one reusable ONNX inferencer before receiving frames; semantic tiled inference is not implemented here.</p>
+</div>
+</section>
+<section id="display">
+<h2>Receive and display run at different rates.</h2>
+<figure>
+<div class="timeline" tabindex="0" aria-label="Illustrative latest-frame display timeline">
+<svg viewBox="0 0 1040 280" role="img" aria-label="Several received frames replace one pending display slot between two timer ticks, so the view displays the newest frame">
+<defs><marker id="time-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto"><path d="M1 1L11 6L1 11Z" fill="context-stroke"/></marker></defs>
+<text x="20" y="66">Receive</text>
+<text x="20" y="171">Display</text>
+<path class="edge" d="M190 60H250M380 60H470M600 60H690M820 60H1000" marker-end="url(#time-arrow)"/>
+<path class="edge" d="M190 165H775M945 165H1000" marker-end="url(#time-arrow)"/>
+<rect class="node" x="250" y="35" width="130" height="50"/><text x="315" y="68" text-anchor="middle">frame A</text>
+<rect class="node" x="470" y="35" width="130" height="50"/><text x="535" y="68" text-anchor="middle">frame B</text>
+<rect class="node online" x="690" y="35" width="130" height="50"/><text x="755" y="68" text-anchor="middle">frame C</text>
+<path class="route" d="M755 85V112H860V134" marker-end="url(#time-arrow)"/>
+<text class="sub" x="949" y="100" text-anchor="middle">takes newest</text>
+<rect class="node" x="775" y="140" width="170" height="50"/><text x="860" y="173" text-anchor="middle">show C</text>
+<path class="edge" d="M205 145V210M860 190V210M205 220H860M201 224L209 216M856 224L864 216"/>
+<text class="sub" x="532" y="249" text-anchor="middle">0.1 s timer interval in the current launch</text>
+</svg>
+</div>
+<figcaption><span class="fig-n">Fig. 3</span>New frames replace <code>_pending_display</code>; the timer consumes only the newest queued result. A/B/C spacing is illustrative, not a measured acquisition rate. The 0.1-second interval targets about 10 display updates per second, not guaranteed throughput.</figcaption>
+</figure>
+<div class="boundary-note">
+<strong>Async reception does not make processing parallel.</strong>
+<p>The example uses one qasync/Qt event loop, and processing runs synchronously inside <code>async for</code>. Slow processing can delay both reception and GUI updates. The single display slot prevents a GUI-frame backlog; it is not a processing-worker queue. Consider workers and an explicit buffering policy for heavier algorithms.</p>
+</div>
+</section>
+<section id="scope">
+<h2>Pixels arrive with acquisition context.</h2>
+<div class="split">
+<div>
+<h3>Subscribe, decode, inspect</h3>
+<p>UI startup uses <code>monitor_all_experiments()</code>. API startup first starts an experiment and then uses <code>monitor_experiment()</code> with its ID.</p>
+<p>The payload carries frame position, size, scaling, and stage position. Set the NumPy pixel type to match the acquisition. With <code>enable_raw_data=True</code>, payloads can be partial rectangles or scan lines rather than complete frames.</p>
+</div>
+<div>
+<h3>What this example does not add</h3>
+<p>The script does not wait for a finished CZI before processing. ZEN owns acquisition and recording; the Python code shown here does not export processed frames to a new CZI.</p>
+<p>Online analysis is not automatically feedback control. This example does not send processing-driven stage or experiment changes back to ZEN.</p>
+<p>Closing the window cancels the stream task, stops the display timer, and closes the streaming channel. This is not a command to stop ZEN acquisition.</p>
+</div>
+</div>
+</section>
+<footer class="sources">
+<p>Source-grounded explanation, not a recorded hardware run.</p>
+<p><a href="../examples/control_zen_via_zenapi/zenapi_streaming.py">Streaming example</a>: <code>Processing</code>, <code>MainWindow.read()</code>, <code>queue_display()</code>, and <code>_display_pending_frame()</code>.<br>
+<a href="../examples/control_zen_via_zenapi/processing_tools.py">ArrayProcessor implementation</a> ·
+<a href="zen-api-from-csharp-to-clients.html">C# contracts, generated clients, and gRPC: interactive slides</a></p>
+</footer>
+</main>
+<script>
+const modes = {
+  raw: {
+    name: 'NO_PROCESSING',
+    node: 'optional / bypassed',
+    status: 'Current script default: processing off',
+    explanation: 'Raw mode queues the decoded frame and clears old object overlays. Change the selector to see where processing plugs in.'
+  },
+  otsu: {
+    name: 'SEG_THRESHOLD_OTSU',
+    node: 'Otsu segmentation',
+    status: 'Online Processing enabled: Otsu',
+    explanation: 'Otsu chooses a threshold from each frame. The script labels objects, measures them, and displays the original frame with optional bounding boxes.'
+  },
+  manual: {
+    name: 'SEG_THRESHOLD_MANUAL',
+    node: 'manual threshold',
+    status: 'Online Processing enabled: manual threshold',
+    explanation: 'A caller-supplied threshold creates a mask. The script labels and measures objects, then displays the original frame with optional bounding boxes.'
+  },
+  semantic: {
+    name: 'SEG_SEMANTIC',
+    node: 'semantic model',
+    status: 'Online Processing enabled: segmentation model',
+    explanation: 'A matching CZANN model and reusable ONNX inferencer predict a segmentation mask for the full input frame. Object measurements feed optional boxes on the original image.'
+  },
+  denoise: {
+    name: 'DENOISE',
+    node: 'denoising model',
+    status: 'Online Processing enabled: denoising model',
+    explanation: 'A matching regression model, such as Noise2Void, produces a denoised image. This path queues the model output for display, not an object-label overlay.'
+  }
+};
+document.getElementById('processing-mode').addEventListener('change', event => {
+  const key = event.target.value;
+  const mode = modes[key];
+  document.getElementById('stream-flow').dataset.processing = key === 'raw' ? 'off' : 'on';
+  document.getElementById('processing-node-label').textContent = mode.node;
+  document.getElementById('mode-code').textContent = 'processing = Processing.' + mode.name;
+  document.getElementById('route-status').textContent = mode.status;
+  document.getElementById('mode-explanation').textContent = mode.explanation;
+});
+</script>
+</body>
+</html>

@@ -6,14 +6,22 @@ sequenceDiagram
     participant ZEN as ZEN services
     participant Plot as Matplotlib
     User->>App: Launch in pixi_smartmic default
+    App->>ZEN: Initialize API and get image output path
+    ZEN-->>App: Image output directory
+    alt load_overview=True (default)
+        App->>Files: Load saved overview
+    else load_overview=False
+        App->>ZEN: Acquire an OverView
+        Note over App,ZEN: gca_run_overviewscan loads, clones, and runs the overview experiment
+        ZEN->>Files: Save overview CZI in ZEN output directory
+        ZEN-->>App: Completed overview output name
+    end
     opt show_overview
-        App->>ZEN: Open saved overview through TCP/IP
+        App->>ZEN: Open selected overview through TCP/IP
     end
     App->>Files: Read overview planetable
     Files-->>App: Stage Z values
-    App->>ZEN: Initialize API and get image output path
-    ZEN-->>App: Image output directory
-    App->>Seg: Segment saved overview
+    App->>Seg: Segment selected overview
     Seg->>Files: Write segmented CZI and object CSV
     Seg-->>App: Object results and polygon coordinates
     App->>Files: Copy overview into run folder

@@ -1,5 +1,9 @@
 flowchart TD
-    A["Read saved overview and stage metadata"] -->|derive Z| B["Segment overview and write labels / CSV"]
+    S{"load_overview?"} -->|true - default| R["Load saved overview"]
+    S -->|false| A["Acquire an OverView"]
+    R -->|read| Z["Read overview stage metadata"]
+    A -->|read acquired CZI| Z
+    Z -->|derive Z| B["Segment overview and write labels / CSV"]
     B -->|copy input| C["Copy overview and optionally export overlay PNG"]
     C -->|iterate results| D{"Next object?"}
     D -->|yes| E["Load and clone detail experiment"]

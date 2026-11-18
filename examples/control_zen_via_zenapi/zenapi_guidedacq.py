@@ -283,9 +283,12 @@ async def main(
     open_detail: bool = False,
     move_results: bool = False,
     show_summary_plot: bool = False,
+    load_overview: bool = True,
 ) -> None:
     """Run guided acquisition and optionally relocate its complete output folder.
 
+    Set load_overview=False to acquire an overview with gca_run_overviewscan
+    instead of loading the existing data/OverViewScan.czi (the default).
     Set move_results=True to move the timestamped run folder, including all
     overview, segmentation, table, preview, and detail outputs, under
     workshop_root/results/guided_acq after acquisition succeeds. Existing run
@@ -297,7 +300,6 @@ async def main(
     # OVERVIEW SCAN
     overview_exp = "00000_Overview_15x8_DAPI_5X"
 
-    # simulate overview scan by loading a CZI image
     show_overview = True
 
     # please adapt to your needs
@@ -317,8 +319,21 @@ async def main(
     show_segresults = True
     verbose = False  # save the cloned experiments to disk to check later and create additional logging
 
-    # run the overview scan
-    logger.info(f"Run or simulate OverView Scan: {overview_exp}")
+    # get the gRPC channel and the metadata
+    channel, metadata = initialize_zenapi(config_path)
+
+    # create the experiment service
+    exp_service = ExperimentServiceStub(channel=channel, metadata=metadata)
+
+    # show output path for images
+    zen_savefolder = await exp_service.get_image_output_path(ExperimentServiceGetImageOutputPathRequest())
+
+    if load_overview:
+        logger.info(f"Load OverView Scan: {filepath_overview}")
+    else:
+        logger.info(f"Run OverView Scan: {overview_exp}")
+        overview_result = await gca_run_overviewscan(overview_exp, exp_service)
+        filepath_overview = Path(zen_savefolder.image_output_path) / f"{overview_result.output_name}.czi"
 
     if show_overview:
         # open the image in ZEN (for demo purposes) using TCP-IP
@@ -340,16 +355,6 @@ async def main(
     # get the median Z-value
     zvalue_image = np.round(pt.loc[:, "Z[micron]"].median(), 2)
 
-    # get the gRPC channel and the metadata
-    channel, metadata = initialize_zenapi(config_path)
-
-    # create the experiment service
-    exp_service = ExperimentServiceStub(channel=channel, metadata=metadata)
-
-    # show output path for images
-    zen_savefolder = await exp_service.get_image_output_path(ExperimentServiceGetImageOutputPathRequest())
-
-    # exp_result = await gca_run_overviewscan(overview_exp, exp_service)
     cziname_ov = filepath_overview.stem + "_OV.czi"
 
     # run the overview scan
@@ -490,4 +495,4 @@ if __name__ == "__main__":
     logger = set_logging()
 
     # run the main function
-    asyncio.run(main(move_results=True, show_summary_plot=True))
+    asyncio.run(main(move_results=True, show_summary_plot=True, load_overview=True))

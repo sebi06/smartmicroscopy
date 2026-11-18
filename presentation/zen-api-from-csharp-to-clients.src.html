@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Five interactive slides explaining ZEN API contract generation, Python packaging, gRPC calls, and clients in Java and other languages.">
+<title>ZEN API: from C# to Python and beyond</title>
+<script>document.documentElement.classList.add('js');</script>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style id="deck-engine">
+  /* ===== ENGINE ===== */
+  .deck { height: 100dvh; overflow-y: auto; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+  .slide {
+    height: 100dvh; scroll-snap-align: start; overflow: hidden; position: relative; isolation: isolate;
+    display: flex; flex-direction: column; justify-content: center; gap: clamp(16px, 2.5vh, 28px);
+    padding: clamp(40px, 7vh, 88px) clamp(32px, 8vw, 128px);
+    transition: opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1);
+  }
+  .js .slide { opacity: 0; transform: translateY(32px); }
+  .slide.visible { opacity: 1; transform: none; }
+  .js .slide .reveal { opacity: 0; transform: translateY(12px); transition: opacity .5s, transform .5s; }
+  .slide.visible .reveal { opacity: 1; transform: none; }
+  .slide.visible .reveal:nth-child(2) { transition-delay: .08s; }
+  .slide.visible .reveal:nth-child(3) { transition-delay: .16s; }
+  .slide.visible .reveal:nth-child(4) { transition-delay: .24s; }
+
+  /* ===== DELIVERY CHECK: reduced motion doubles as the fit test ===== */
+  @media (prefers-reduced-motion: reduce) {
+    .deck { scroll-behavior: auto; }
+    .slide, .slide .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .slide[data-slide-check] { outline: 4px solid var(--risk); outline-offset: -4px; }
+    .slide[data-slide-check="auto-fit"] { outline-color: var(--accent); }
+    .slide[data-slide-check]::after {
+      content: attr(data-slide-check-label); position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 20; padding: 6px 10px; border-radius: 4px; color: var(--bg); background: var(--risk); font: 600 12px/1.2 var(--font-mono); pointer-events: none;
+    }
+    .slide[data-slide-check="auto-fit"]::after { background: var(--accent); }
+  }
+
+  /* ===== CHROME ===== */
+  .deck-progress { position: fixed; top: 0; left: 0; height: 2px; background: var(--accent); z-index: 100; transition: width .3s; pointer-events: none; }
+  .deck-dots {
+    position: fixed; right: clamp(12px, 2vw, 24px); top: 50%; transform: translateY(-50%); z-index: 100;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 6px; width: 32px;
+    max-height: min(70dvh, 560px); overflow-y: auto; border-radius: 10px;
+    background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(6px); transition: width .2s;
+  }
+  .deck-dots:hover, .deck-dots:focus-within { align-items: stretch; width: min(260px, calc(100vw - 32px)); border: 1px solid var(--border); }
+  .deck-dot {
+    display: grid; grid-template-columns: 8px minmax(0,1fr); align-items: center; gap: 0; width: 20px; min-height: 24px;
+    padding: 6px; border: 0; border-radius: 4px; background: transparent; color: var(--text-dim);
+    font: 500 12px/1.2 var(--font-mono); text-align: left; cursor: pointer;
+  }
+  .deck-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55; justify-self: center; }
+  .deck-dot-label { max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap; text-overflow: ellipsis; transition: max-width .2s, opacity .2s; }
+  .deck-dots:hover .deck-dot, .deck-dots:focus-within .deck-dot { gap: 10px; width: 100%; }
+  .deck-dots:hover .deck-dot-label, .deck-dots:focus-within .deck-dot-label { max-width: 200px; opacity: 1; }
+  .deck-dot:hover { color: var(--text); }
+  .deck-dot[aria-current="true"] { color: var(--accent); }
+  .deck-dot[aria-current="true"]::before { opacity: 1; transform: scale(1.4); }
+  .deck-dot:focus-visible, .deck-panel__button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .deck-counter, .deck-hints { position: fixed; bottom: clamp(12px, 2vh, 24px); z-index: 100; font: 500 12px var(--font-mono); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .deck-counter { right: clamp(16px, 2vw, 28px); }
+  .deck-hints { left: 50%; transform: translateX(-50%); transition: opacity .5s; white-space: nowrap; }
+  .deck-hints.faded { opacity: 0; pointer-events: none; }
+  .deck-overlay { position: fixed; inset: 0; z-index: 200; display: none; place-items: center; padding: 24px; background: rgba(0,0,0,.45); backdrop-filter: blur(4px); }
+  .deck-overlay.open { display: grid; }
+  .deck-panel { width: min(560px, 86vw); max-height: 80dvh; overflow: auto; padding: 16px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-family: var(--font-mono); box-shadow: 0 24px 64px rgba(0,0,0,.25); }
+  .deck-panel:focus { outline: none; }
+  .deck-panel__header { margin: 2px 10px 10px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+  .deck-panel__button { display: flex; gap: 12px; width: 100%; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; color: inherit; font: 14px/1.3 var(--font-body); text-align: left; cursor: pointer; }
+  /* Accent text on its own tint drops under 4.5:1; the tint carries the state, the text stays --text. */
+  .deck-panel__button:hover, .deck-panel__button[aria-current="true"] { background: var(--accent-dim); color: var(--text); }
+  .deck-panel__number { min-width: 22px; font: 500 12px/1.6 var(--font-mono); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .deck-help-row { display: flex; justify-content: space-between; gap: 24px; padding: 7px 10px; font-size: 13px; }
+  .deck-help-row kbd { padding: 2px 8px; border: 1px solid var(--border-bright); border-radius: 4px; font: inherit; }
+
+</style>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0d1520; --surface:#132031; --border:#31445e; --border-bright:#768ba8;
+  --text:#e3ecf5; --text-dim:#adbed0; --accent:#ffb547; --accent-dim:rgba(255,181,71,.14);
+  --ok:#6fd3a0; --risk:#ff7b6b; --info:#7cc0f0;
+  --font-body:'IBM Plex Sans','Segoe UI',sans-serif;
+  --font-display:var(--font-body); --font-mono:'IBM Plex Mono',Consolas,monospace;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-body); overflow:hidden; }
+.deck { display:block; width:100%; max-width:none; margin:0; padding:0; }
+.js .slide { opacity:1; transform:none; }
+.deck .slide { margin:0; border:0; padding:clamp(28px,5vh,64px) clamp(28px,5vw,84px) 48px; gap:clamp(12px,2vh,22px); }
+.slide h1,.slide h2 { margin:0; font:600 clamp(28px,3.8vw,52px)/1.1 var(--font-body); letter-spacing:-.025em; max-width:none; }
+.slide__label { margin:0; font:500 18px/1.2 var(--font-mono); color:var(--accent); }
+.slide__body { margin:0; max-width:90ch; font:400 clamp(18px,1.7vw,23px)/1.35 var(--font-body); color:var(--text-dim); }
+.slide p,.slide li,.slide button,.slide label { font-size:clamp(18px,1.55vw,22px); line-height:1.35; }
+.slide figure { margin:0; min-height:0; }
+.slide figcaption { margin-top:12px; font:400 18px/1.3 var(--font-body); color:var(--text-dim); }
+.diagram-shell { overflow:auto; max-width:100%; min-height:0; }
+.diagram-shell svg { display:block; width:100%; max-height:35dvh; }
+svg text { font-family:var(--font-body); fill:var(--text); font-size:24px; }
+svg .sub { fill:var(--text-dim); font-size:18px; }
+svg .node { fill:var(--surface); stroke:var(--border-bright); stroke-width:2.5; }
+svg .edge { stroke:var(--accent); stroke-width:2.5; fill:none; }
+svg .return { stroke:var(--info); stroke-width:2.5; fill:none; }
+svg .server { stroke:var(--ok); }
+svg .boundary { fill:none; stroke:var(--border-bright); stroke-width:2; stroke-dasharray:6 6; }
+.step-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+.step-controls button,.language-controls button,.mode-controls button {
+  padding:8px 16px; border:1px solid var(--border-bright); border-radius:3px;
+  background:var(--surface); color:var(--text); font-family:var(--font-body); cursor:pointer;
+}
+.step-controls button:hover,.language-controls button:hover,.mode-controls button:hover { border-color:var(--accent); }
+button:focus-visible,input:focus-visible,a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+.step-controls input { flex:1; min-width:140px; max-width:300px; accent-color:var(--accent); }
+.step-caption { display:block; flex-basis:100%; margin:0; min-height:2.7em; color:var(--text); }
+.process-captions { margin:0; padding:0; list-style:none; flex-basis:100%; }
+.process-captions li { min-height:2.7em; }
+.process-captions li[hidden] { display:none; }
+.process-captions li::before { content:attr(data-n) " "; color:var(--accent); font-family:var(--font-mono); }
+.process-player svg g { transition:opacity .2s; }
+.process-player svg g.pending { opacity:.15; }
+@media(prefers-reduced-motion:reduce) { .process-player svg g { transition:none; } }
+.split { display:grid; grid-template-columns:1.15fr 1fr; gap:28px; align-items:center; }
+.split > * { min-width:0; }
+.code-scroll { overflow:auto; border:1px solid var(--border-bright); padding:16px 20px; background:var(--surface); }
+pre { margin:0; font:400 clamp(18px,1.65vw,22px)/1.4 var(--font-mono); }
+code { font-family:var(--font-mono); overflow-wrap:anywhere; }
+.code-note { margin:10px 0 0; color:var(--text-dim); }
+.adapter { display:grid; gap:12px; }
+.adapter .box { padding:14px 18px; border:1px solid var(--border-bright); background:var(--surface); }
+.adapter .box strong { display:block; font-size:24px; }
+.adapter .box p { margin:6px 0 0; color:var(--text-dim); }
+.connector { margin:0; color:var(--accent); text-align:center; font-family:var(--font-mono); }
+.language-controls,.mode-controls { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+[aria-pressed="true"] { border-color:var(--accent) !important; box-shadow:inset 0 -3px var(--accent); }
+.build-chain { display:grid; grid-template-columns:1fr 90px 1fr 90px 1fr; gap:14px; align-items:center; }
+.build-chain .box { border:1px solid var(--border-bright); padding:18px; min-height:138px; background:var(--surface); }
+.build-chain h3 { margin:0 0 12px; font-size:24px; }
+.build-chain p { margin:0; color:var(--text-dim); }
+.build-chain .verb { text-align:center; color:var(--accent); }
+.language-note { margin:18px 0 0; }
+.keyline { border-left:3px solid var(--accent); padding-left:16px; }
+.response-lane { display:grid; grid-template-columns:1fr 70px 1.35fr; gap:12px; align-items:center; }
+.response-lane .service { border:2px solid var(--ok); padding:22px; background:var(--surface); font-size:24px; }
+.response-lane .reply { border:1px solid var(--border-bright); padding:10px; background:var(--surface); }
+.response-lane .arrow { color:var(--info); text-align:center; }
+.responses { display:flex; gap:8px; flex-wrap:wrap; }
+.stream-only { display:none; }
+[data-mode="stream"] .stream-only { display:block; }
+.guardrails { padding-left:24px; margin:0; display:grid; gap:14px; }
+.guardrails li { padding-left:4px; }
+.sources { margin:0; color:var(--text-dim); font-size:18px !important; }
+.sources a { color:var(--info); text-underline-offset:3px; }
+.deck-hints,.deck-counter { background:var(--bg); padding:4px 8px; }
+.deck-panel { font-family:var(--font-body); }
+.deck-brand { position:fixed; top:12px; right:16px; width:48px; height:auto; z-index:90; pointer-events:none; margin:0; border:0; }
+@media(max-height:700px) {
+  .deck .slide { padding-block:22px 40px; gap:10px; }
+  .slide h1,.slide h2 { font-size:clamp(27px,3vw,40px); }
+  .diagram-shell svg { max-height:32dvh; }
+  .step-controls { margin-top:8px; gap:8px; }
+  .slide figcaption { margin-top:8px; }
+  .build-chain .box { padding:12px; min-height:120px; }
+}
+@media(max-width:768px) {
+  .deck-brand { width:32px; right:12px; }
+  .deck .slide { padding-inline:20px 36px; }
+  .slide h1,.slide h2 { font-size:28px; }
+  .diagram-shell svg { min-width:720px; max-height:32dvh; }
+  .split { grid-template-columns:1fr; gap:12px; }
+  .adapter { grid-template-columns:1fr 1fr; gap:10px; }
+  .adapter .connector { display:none; }
+  .adapter .box { padding:10px; }
+  .adapter .box strong { font-size:20px; }
+  .adapter .box p { font-size:18px; }
+  pre { font-size:18px; line-height:1.25; }
+  .code-scroll { padding:12px; }
+  .build-chain { grid-template-columns:1fr; gap:8px; }
+  .build-chain .verb { display:none; }
+  .build-chain .box { min-height:0; padding:12px; }
+  .build-chain h3 { margin-bottom:4px; font-size:20px; }
+  .guardrails { gap:8px; }
+  .language-controls,.mode-controls { margin-bottom:10px; gap:8px; }
+  .response-lane { grid-template-columns:1fr 30px 1.3fr; }
+  .response-lane .service { padding:12px; font-size:20px; }
+  .slide__label { font-size:18px; }
+}
+@media(max-height:500px) { .slide__label { display:none; } .deck .slide { padding-block:14px 32px; } }
+@media print {
+  body { overflow:visible; }
+  .deck { height:auto; overflow:visible; }
+  .deck .slide { height:180mm; width:300mm; break-after:page; opacity:1 !important; transform:none !important; }
+  .deck-progress,.deck-dots,.deck-counter,.deck-hints,.deck-overlay,.step-controls button,.step-controls input { display:none !important; }
+}
+</style>
+</head>
+<body>
+<img class="deck-brand" src="assets/zeiss.png" width="55" height="54" alt="ZEISS">
+<main class="deck" aria-label="From ZEN C# interfaces to client packages">
+<section class="slide" id="slide-1">
+<p class="slide__label">ZEN API / build time</p>
+<h1 class="slide__heading">Generate the client, not the microscope.</h1>
+<p class="slide__body">A language-neutral contract connects selected C# interfaces to clients in Python, Java, and other languages.</p>
+<figure class="process-player">
+<div class="diagram-shell" tabindex="0" aria-label="Interactive build pipeline">
+<svg viewBox="0 0 1080 205" role="img" aria-label="C# interfaces feed a source generator, proto contracts, client generation, and a Python wheel">
+<defs><marker id="build-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M1 1L11 6L1 11Z" fill="var(--accent)"/></marker></defs>
+<g data-s="1"><rect class="node server" x="5" y="65" width="172" height="84"/><text x="91" y="98" text-anchor="middle">C# interfaces</text><text class="sub" x="91" y="125" text-anchor="middle">selected methods</text></g>
+<g data-s="2"><path class="edge" d="M177 107H222" marker-end="url(#build-arrow)"/><text class="sub" x="201" y="49" text-anchor="middle">inspect</text><rect class="node" x="228" y="65" width="172" height="84"/><text x="314" y="98" text-anchor="middle">C# generator</text><text class="sub" x="314" y="125" text-anchor="middle">ZEN build tooling</text></g>
+<g data-s="3"><path class="edge" d="M400 107H445" marker-end="url(#build-arrow)"/><text class="sub" x="424" y="49" text-anchor="middle">export</text><rect class="node" x="451" y="65" width="172" height="84"/><text x="537" y="98" text-anchor="middle">.proto contract</text><text class="sub" x="537" y="125" text-anchor="middle">methods + data</text></g>
+<g data-s="4"><path class="edge" d="M623 107H668" marker-end="url(#build-arrow)"/><text class="sub" x="647" y="49" text-anchor="middle">compile</text><rect class="node" x="674" y="65" width="172" height="84"/><text x="760" y="98" text-anchor="middle">Client code</text><text class="sub" x="760" y="125" text-anchor="middle">protoc + plugin</text></g>
+<g data-s="5"><path class="edge" d="M846 107H891" marker-end="url(#build-arrow)"/><text class="sub" x="870" y="49" text-anchor="middle">package</text><rect class="node" x="897" y="65" width="178" height="84"/><text x="986" y="98" text-anchor="middle">Python wheel</text><text class="sub" x="986" y="125" text-anchor="middle">zen_api stubs</text></g>
+</svg>
+</div>
+<div class="step-controls">
+<ol class="process-captions">
+<li data-n="1/5">ZEN developers select and define the internal C# interfaces that the external API will expose.</li>
+<li data-n="2/5">ZEN's source-generation tooling inspects those definitions during the product build.</li>
+<li data-n="3/5">The build exports versioned .proto files and documentation: the shared technical contract.</li>
+<li data-n="4/5">protoc and a language-specific plugin generate message classes and client stubs.</li>
+<li data-n="5/5">Package the generated Python files as a wheel, declare dependencies, and test compatibility.</li>
+</ol>
+<button type="button" data-action="previous">Previous step</button><button type="button" data-action="play">Play</button>
+<input type="range" min="1" max="5" value="5" aria-label="Build pipeline step">
+<button type="button" data-action="next">Next step</button>
+</div>
+<figcaption>Fig. 1. Only the exposed contract becomes client code; ZEN's C# implementation stays on the server.</figcaption>
+</figure>
+</section>
+<section class="slide" id="slide-2">
+<p class="slide__label">The contract / the adapter</p>
+<h2 class="slide__heading">The contract says what. C# decides how.</h2>
+<figure>
+<div class="split">
+<div>
+<div class="code-scroll" tabindex="0" aria-label="Illustrative Protocol Buffers contract"><pre>syntax = "proto3";
+service ExampleService {
+  rpc GetFolder(GetFolderRequest)
+      returns (GetFolderReply);
+}
+message GetFolderRequest {}
+message GetFolderReply {
+  string path = 1;
+}</pre></div>
+<p class="code-note">Teaching sketch: shortened names, not a copy-paste ZEN contract.</p>
+</div>
+<div class="adapter">
+<div class="box"><strong>Contract: methods + messages</strong><p>Methods, field types, and stable field numbers.</p></div>
+<p class="connector">maps requests into internal calls</p>
+<div class="box"><strong>Server adapter: C# behavior</strong><p>Validates requests and calls ZEN's internal interfaces/proxies.</p></div>
+</div>
+</div>
+<figcaption>Fig. 2. A .proto file is a shared specification, not a microscope driver or a translation of C# business logic.</figcaption>
+</figure>
+<p class="slide__body keyline">Adding a .proto method does not implement that method on the server.</p>
+</section>
+<section class="slide" id="slide-3">
+<p class="slide__label">gRPC / one call across a boundary</p>
+<h2 class="slide__heading">A familiar function call travels as messages.</h2>
+<p class="slide__body">gRPC is a remote procedure call framework. A local stub sends a typed request to another process and receives a reply.</p>
+<figure class="process-player">
+<div class="diagram-shell" tabindex="0" aria-label="Interactive gRPC request and response">
+<svg viewBox="0 0 1080 250" role="img" aria-label="A Python stub encodes a request, sends it over HTTP/2, and a server adapter calls ZEN and returns a reply">
+<defs>
+<marker id="rpc-request" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto"><path d="M1 1L11 6L1 11Z" fill="var(--accent)"/></marker>
+<marker id="rpc-reply" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto"><path d="M1 1L11 6L1 11Z" fill="var(--info)"/></marker>
+</defs>
+<path class="boundary" d="M245 90V165"/><text class="sub" x="122" y="44" text-anchor="middle">YOUR CLIENT PROCESS</text>
+<path class="boundary" d="M656 90V165"/><text class="sub" x="864" y="44" text-anchor="middle">SERVER / ZEN SIDE</text>
+<g data-s="1"><rect class="node" x="24" y="90" width="195" height="75"/><text x="121" y="120" text-anchor="middle">Python stub</text><text class="sub" x="121" y="148" text-anchor="middle">typed local method</text></g>
+<g data-s="2"><path class="edge" d="M220 107H365" marker-end="url(#rpc-request)"/><text class="sub" x="295" y="81" text-anchor="middle">encode request</text><rect class="node" x="376" y="90" width="160" height="75"/><text x="456" y="120" text-anchor="middle">Protobuf</text><text class="sub" x="456" y="148" text-anchor="middle">binary messages</text></g>
+<g data-s="3"><path class="edge" d="M537 107H669" marker-end="url(#rpc-request)"/><text class="sub" x="602" y="81" text-anchor="middle">HTTP/2 + TLS</text></g>
+<g data-s="4"><rect class="node server" x="680" y="90" width="180" height="75"/><text x="770" y="120" text-anchor="middle">gRPC adapter</text><text class="sub" x="770" y="148" text-anchor="middle">dispatch + validate</text><path class="edge" d="M860 107H899" marker-end="url(#rpc-request)"/><rect class="node server" x="910" y="90" width="146" height="75"/><text x="983" y="120" text-anchor="middle">ZEN / C#</text><text class="sub" x="983" y="148" text-anchor="middle">real behavior</text></g>
+<g data-s="5"><path class="return" d="M983 165V202H456V165" marker-end="url(#rpc-reply)"/><text class="sub" x="720" y="191" text-anchor="middle">encode reply + gRPC status</text></g>
+<g data-s="6"><path class="return" d="M456 202H121V165" marker-end="url(#rpc-reply)"/><text class="sub" x="292" y="225" text-anchor="middle">decode typed result</text></g>
+</svg>
+</div>
+<div class="step-controls">
+<ol class="process-captions">
+<li data-n="1/6">Your application calls a generated stub, which looks like an ordinary local method.</li>
+<li data-n="2/6">Generated code serializes the request fields into a Protocol Buffers message.</li>
+<li data-n="3/6">gRPC transports the message using HTTP/2; use the gateway's required TLS and authentication settings.</li>
+<li data-n="4/6">The server decodes the request, checks it, and dispatches through the adapter to ZEN's C# implementation.</li>
+<li data-n="5/6">The server serializes the response and sends it back with a gRPC status.</li>
+<li data-n="6/6">The client decodes a typed result, or reports an error. A remote call can fail or time out.</li>
+</ol>
+<button type="button" data-action="previous">Previous step</button><button type="button" data-action="play">Play</button>
+<input type="range" min="1" max="6" value="6" aria-label="gRPC call step">
+<button type="button" data-action="next">Next step</button>
+</div>
+<figcaption>Fig. 3. Protobuf defines and encodes the messages; gRPC carries the remote call. This is not the legacy TCP/IP macro interface.</figcaption>
+</figure>
+</section>
+<section class="slide" id="slide-4">
+<p class="slide__label">One contract / different client toolchains</p>
+<h2 class="slide__heading">Change the language, not the ZEN server.</h2>
+<figure>
+<div class="language-controls" role="group" aria-label="Client language">
+<button type="button" data-language="python" aria-pressed="true">Python</button>
+<button type="button" data-language="java" aria-pressed="false">Java</button>
+<button type="button" data-language="csharp" aria-pressed="false">C# / .NET</button>
+</div>
+<div class="build-chain" aria-live="polite">
+<div class="box"><h3>Generate</h3><p id="language-generator">protoc + betterproto plugin</p></div>
+<p class="verb">package<br>&#8594;</p>
+<div class="box"><h3 id="language-artifact">Python wheel (.whl)</h3><p id="language-package">zen_api messages and async service stubs</p></div>
+<p class="verb">install<br>&#8594;</p>
+<div class="box"><h3>Use the client</h3><p id="language-use">Install the matching wheel and use the grpclib-based channel.</p></div>
+</div>
+<p class="language-note keyline" id="language-note">The Python package uses betterproto-generated code. zen_api_utils is a separate helper package, not the generated API.</p>
+<figcaption>Fig. 4. The same .proto contract can generate Java, C#, Go, C++, and other compatible clients; packaging follows each ecosystem.</figcaption>
+</figure>
+<p class="slide__body">Java and .NET illustrate the general gRPC process, not a promise of officially distributed ZEN client packages.</p>
+</section>
+<section class="slide" id="slide-5">
+<p class="slide__label">Using the API / what the contract guarantees</p>
+<h2 class="slide__heading">One call can return one reply or a stream.</h2>
+<figure>
+<div class="split">
+<div>
+<div class="mode-controls" role="group" aria-label="Response pattern">
+<button type="button" data-rpc-mode="unary" aria-pressed="true">Unary call</button>
+<button type="button" data-rpc-mode="stream" aria-pressed="false">Server stream</button>
+</div>
+<div class="response-lane" id="response-lane" data-mode="unary" aria-label="Illustrative server response pattern">
+<div class="service">ZEN service</div><div class="arrow">sends<br>&#8594;</div>
+<div class="responses"><span class="reply">reply 1</span><span class="reply stream-only">reply 2</span><span class="reply stream-only">reply ...</span></div>
+</div>
+<p id="response-caption" aria-live="polite">Unary: one request, one response. Example: query the image output folder.</p>
+</div>
+<ul class="guardrails">
+<li>Match the client contract to the running server's supported capabilities.</li>
+<li>Configure the gateway endpoint, trusted certificate, and authentication.</li>
+<li>Handle deadlines, errors, and cancellation; network calls are not local calls.</li>
+</ul>
+</div>
+<figcaption>Fig. 5. The method's .proto declaration fixes its response pattern; this switch compares two method types, not a runtime API option.</figcaption>
+</figure>
+<p class="sources">Conceptual simulation only: no connection to ZEN and no microscope commands.<br>
+Sources: <a href="smart-microscopy-zen.html#contracts">original figure and context</a> ·
+<a href="https://github.com/zeiss-microscopy/OAD/tree/master/ZEN-API">ZEN API overview</a> ·
+<a href="https://github.com/sebi06/ZEN_API/tree/main/packaging">Python generation and packaging</a> ·
+<a href="https://grpc.io/docs/what-is-grpc/introduction/">gRPC introduction</a></p>
+</section>
+</main>
+<script>
+document.querySelectorAll('.process-player').forEach(figure => {
+  const captions = [...figure.querySelectorAll('.process-captions li')];
+  const slider = figure.querySelector('input[type="range"]');
+  const play = figure.querySelector('[data-action="play"]');
+  let step = captions.length;
+  let timer;
+  function show(value) {
+    step = Math.max(1, Math.min(captions.length, value));
+    slider.value = String(step);
+    captions.forEach((caption, index) => { caption.hidden = index !== step - 1; });
+    figure.querySelectorAll('svg g[data-s]').forEach(part => {
+      const pending = Number(part.dataset.s) > step;
+      part.classList.toggle('pending', pending);
+      part.setAttribute('aria-hidden', String(pending));
+    });
+  }
+  function pause() {
+    clearInterval(timer);
+    timer = undefined;
+    play.textContent = 'Play';
+  }
+  figure.querySelector('[data-action="previous"]').addEventListener('click', () => { pause(); show(step - 1); });
+  figure.querySelector('[data-action="next"]').addEventListener('click', () => { pause(); show(step + 1); });
+  slider.addEventListener('input', () => { pause(); show(Number(slider.value)); });
+  play.addEventListener('click', () => {
+    if (timer !== undefined) { pause(); return; }
+    if (step === captions.length) show(1);
+    play.textContent = 'Pause';
+    timer = setInterval(() => {
+      show(step + 1);
+      if (step === captions.length) pause();
+    }, 1800);
+  });
+  figure.querySelector('.process-captions').setAttribute('aria-live', 'polite');
+  show(step);
+});
+const languages = {
+  python: {
+    generator: 'protoc + betterproto plugin',
+    artifact: 'Python wheel (.whl)',
+    package: 'zen_api messages and async service stubs',
+    use: 'Install the matching wheel and use the grpclib-based channel.',
+    note: 'The Python package uses betterproto-generated code. zen_api_utils is a separate helper package, not the generated API.'
+  },
+  java: {
+    generator: 'protoc + gRPC Java plugin',
+    artifact: 'Java library (.jar)',
+    package: 'Generated Java messages and gRPC stubs',
+    use: 'Build with Maven or Gradle and configure a compatible Java gRPC channel.',
+    note: 'The contract is unchanged. Java uses its own generated classes, runtime dependencies, and build tooling; no Python wheel is involved.'
+  },
+  csharp: {
+    generator: 'protoc + gRPC C# tooling',
+    artifact: '.NET client library',
+    package: 'Generated C# messages and client stubs',
+    use: 'Reference the client library or package and configure a .NET gRPC channel.',
+    note: 'A generated C# client is still an external client. It is not direct access to ZEN internals and does not replace the server implementation.'
+  }
+};
+document.querySelectorAll('[data-language]').forEach(button => {
+  button.addEventListener('click', () => {
+    const language = languages[button.dataset.language];
+    document.querySelectorAll('[data-language]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    for (const [key, value] of Object.entries(language)) {
+      document.getElementById('language-' + key).textContent = value;
+    }
+  });
+});
+document.querySelectorAll('[data-rpc-mode]').forEach(button => {
+  button.addEventListener('click', () => {
+    const streaming = button.dataset.rpcMode === 'stream';
+    document.querySelectorAll('[data-rpc-mode]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    document.getElementById('response-lane').dataset.mode = streaming ? 'stream' : 'unary';
+    document.getElementById('response-caption').textContent = streaming
+      ? 'Server streaming: one subscription request, then zero or more messages until completion or error. Example: status updates.'
+      : 'Unary: one request, one response. Example: query the image output folder.';
+  });
+});
+</script>
+<script id="deck-engine">
+  // ===== DELIVERY CHECK (copy as is) =====
+  function autoFit() {
+    document.querySelectorAll('.slide__kpi-val').forEach(function(el) {
+      if (el.scrollWidth > el.clientWidth) {
+        el.style.transform = 'scale(' + el.clientWidth / el.scrollWidth + ')'; el.style.transformOrigin = 'left top';
+        el.closest('.slide').setAttribute('data-auto-fit', 'KPI value');
+      }
+    });
+    document.querySelectorAll('.slide--quote blockquote').forEach(function(el) {
+      var len = el.textContent.trim().length;
+      if (len > 150) {
+        el.style.fontSize = Math.max(16, Math.round(parseFloat(getComputedStyle(el).fontSize) * Math.max(.5, 150 / len))) + 'px';
+        el.closest('.slide').setAttribute('data-auto-fit', 'quote');
+      }
+    });
+  }
+  function checkSlideOverflow() {
+    var failures = [];
+    document.querySelectorAll('.slide').forEach(function(slide, i) {
+      var excess = Math.ceil(slide.scrollHeight - slide.clientHeight), fit = slide.getAttribute('data-auto-fit');
+      if (excess > 1 || fit) {
+        slide.setAttribute('data-slide-check', excess > 1 ? 'overflow' : 'auto-fit');
+        slide.setAttribute('data-slide-check-label', excess > 1 ? 'OVERFLOW — split or reduce (' + excess + 'px)' : 'AUTO-FIT USED — review budget (' + fit + ')');
+        failures.push('Slide ' + (i + 1) + ': ' + (excess > 1 ? 'vertical overflow ' + excess + 'px' : 'autoFit: ' + fit));
+      } else {
+        slide.removeAttribute('data-slide-check'); slide.removeAttribute('data-slide-check-label');
+      }
+    });
+    if (failures.length) console.error('Slide delivery check failed. ' + failures.join(' | ') + '. Split or reduce content; autoFit is only a safety net.');
+    else console.info('Slide delivery check passed: no vertical overflow or autoFit fallback.');
+    return failures;
+  }
+  function finishSlideRender() {
+    autoFit();
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    (document.fonts ? document.fonts.ready : Promise.resolve()).then(function() { requestAnimationFrame(checkSlideOverflow); });
+  }
+
+  // ===== ENGINE (copy as is) =====
+  function SlideEngine() {
+    this.deck = document.querySelector('.deck');
+    this.slides = [].slice.call(document.querySelectorAll('.slide'));
+    this.current = 0; this.total = this.slides.length;
+    this.storeKey = ['visual-explainer:slide-deck', location.pathname, document.title, this.total].join(':');
+    this.buildChrome(); this.bindEvents(); this.observe(); this.restore(); this.update();
+  }
+  SlideEngine.prototype.titleOf = function(i) {
+    var el = this.slides[i].querySelector('.slide__hero,.slide__heading,blockquote');
+    var t = el ? el.textContent.trim().replace(/\s+/g, ' ') : 'Slide ' + (i + 1);
+    return t.length > 58 ? t.slice(0, 56) + '…' : t;
+  };
+  SlideEngine.prototype.make = function(tag, cls, text) { var el = document.createElement(tag); if (cls) el.className = cls; if (text) el.textContent = text; return el; };
+  SlideEngine.prototype.buildChrome = function() {
+    var self = this;
+    this.bar = document.body.appendChild(this.make('div', 'deck-progress'));
+    var dots = this.make('nav', 'deck-dots'); dots.setAttribute('aria-label', 'Slide navigation');
+    this.slides.forEach(function(_, i) {
+      var title = self.titleOf(i), d = self.make('button', 'deck-dot');
+      d.type = 'button'; d.setAttribute('aria-label', 'Go to slide ' + (i + 1) + ': ' + title);
+      d.appendChild(self.make('span', 'deck-dot-label', title)); d.onclick = function() { self.goTo(i); };
+      dots.appendChild(d);
+    });
+    document.body.appendChild(dots); this.dots = [].slice.call(dots.children);
+    this.counter = document.body.appendChild(this.make('div', 'deck-counter')); this.counter.setAttribute('aria-live', 'polite');
+    this.hints = document.body.appendChild(this.make('div', 'deck-hints', '← → · O outline · ? help'));
+    this.hintTimer = setTimeout(function() { self.hints.classList.add('faded'); }, 4500);
+    this.overlay = this.make('div', 'deck-overlay'); this.overlay.setAttribute('aria-hidden', 'true');
+    this.panel = this.make('div', 'deck-panel'); this.panel.setAttribute('role', 'dialog'); this.panel.setAttribute('aria-modal', 'true'); this.panel.tabIndex = -1;
+    this.overlay.appendChild(this.panel); document.body.appendChild(this.overlay);
+    this.overlay.addEventListener('click', function(e) { if (e.target === self.overlay) self.closeOverlay(); });
+  };
+  SlideEngine.prototype.openOverlay = function(mode) {
+    var self = this, title = mode === 'help' ? 'Keyboard' : 'Outline';
+    this.panel.replaceChildren(this.make('div', 'deck-panel__header', title)); this.panel.setAttribute('aria-label', title);
+    if (mode === 'help') {
+      [['next', '→ / ↓ / Space'], ['previous', '← / ↑'], ['first / last', 'Home / End'], ['outline', 'O'], ['help', '?'], ['close', 'Esc']].forEach(function(r) {
+        var row = self.make('div', 'deck-help-row'); row.append(self.make('span', '', r[0]), self.make('kbd', '', r[1])); self.panel.appendChild(row);
+      });
+    } else {
+      this.slides.forEach(function(_, i) {
+        var b = self.make('button', 'deck-panel__button'); b.type = 'button';
+        if (i === self.current) b.setAttribute('aria-current', 'true');
+        b.append(self.make('span', 'deck-panel__number', String(i + 1)), self.make('span', '', self.titleOf(i)));
+        b.onclick = function() { self.goTo(i); self.closeOverlay(); }; self.panel.appendChild(b);
+      });
+    }
+    this.lastFocus = document.activeElement; this.overlay.classList.add('open'); this.overlay.setAttribute('aria-hidden', 'false'); this.panel.focus(); this.fadeHints();
+  };
+  SlideEngine.prototype.closeOverlay = function() {
+    this.overlay.classList.remove('open'); this.overlay.setAttribute('aria-hidden', 'true');
+    if (this.lastFocus && this.lastFocus.focus) this.lastFocus.focus();
+  };
+  SlideEngine.prototype.bindEvents = function() {
+    var self = this;
+    document.addEventListener('keydown', function(e) {
+      if (e.target.closest('.diagram-shell,.fig-scroll,.table-scroll,.code-scroll,input,textarea,select,[contenteditable]')) return;
+      var open = self.overlay.classList.contains('open');
+      if (e.key === 'Escape' && open) { e.preventDefault(); self.closeOverlay(); return; }
+      if (e.key === 'o' || e.key === 'O' || e.key === '?') { e.preventDefault(); open ? self.closeOverlay() : self.openOverlay(e.key === '?' ? 'help' : 'outline'); return; }
+      if (open) return;
+      if (['ArrowDown', 'ArrowRight', ' ', 'PageDown'].indexOf(e.key) > -1) { e.preventDefault(); self.goTo(self.current + 1); }
+      else if (['ArrowUp', 'ArrowLeft', 'PageUp'].indexOf(e.key) > -1) { e.preventDefault(); self.goTo(self.current - 1); }
+      else if (e.key === 'Home') { e.preventDefault(); self.goTo(0); }
+      else if (e.key === 'End') { e.preventDefault(); self.goTo(self.total - 1); }
+      self.fadeHints();
+    });
+    addEventListener('hashchange', function() { var i = self.fromHash(); if (i !== null && i !== self.current) self.goTo(i); });
+    var y0;
+    this.deck.addEventListener('touchstart', function(e) { y0 = e.touches[0].clientY; }, { passive: true });
+    this.deck.addEventListener('touchend', function(e) { var dy = y0 - e.changedTouches[0].clientY; if (Math.abs(dy) > 50) self.goTo(self.current + (dy > 0 ? 1 : -1)); });
+  };
+  SlideEngine.prototype.fromHash = function() { var m = /^#(?:slide-)?(\d+)$/.exec(location.hash); var i = m ? +m[1] - 1 : -1; return i >= 0 && i < this.total ? i : null; };
+  SlideEngine.prototype.restore = function() {
+    var i = this.fromHash();
+    if (i === null) { try { var j = parseInt(localStorage.getItem(this.storeKey), 10); if (j > 0 && j < this.total) i = j; } catch (e) {} }
+    if (i) { var self = this; this.current = i; setTimeout(function() { self.slides[i].scrollIntoView({ block: 'start', behavior: 'instant' }); }, 60); }
+  };
+  SlideEngine.prototype.observe = function() {
+    var self = this, obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(en) { if (en.isIntersecting) { en.target.classList.add('visible'); self.current = self.slides.indexOf(en.target); self.update(); } });
+    }, { threshold: .5 });
+    this.slides.forEach(function(s) { obs.observe(s); });
+  };
+  SlideEngine.prototype.goTo = function(i) { this.slides[Math.max(0, Math.min(i, this.total - 1))].scrollIntoView({ behavior: 'smooth' }); };
+  SlideEngine.prototype.update = function() {
+    var c = this.current, pct = Math.round((c + 1) / this.total * 100);
+    this.bar.style.width = pct + '%';
+    this.dots.forEach(function(d, i) { i === c ? d.setAttribute('aria-current', 'true') : d.removeAttribute('aria-current'); });
+    this.counter.textContent = (c + 1) + ' / ' + this.total + ' · ' + pct + '%';
+    // file:// pages throw on replaceState and storage can be blocked; keep the two independent.
+    try { history.replaceState(null, '', '#slide-' + (c + 1)); } catch (e) {}
+    try { localStorage.setItem(this.storeKey, String(c)); } catch (e) {}
+  };
+  SlideEngine.prototype.fadeHints = function() { clearTimeout(this.hintTimer); this.hints.classList.add('faded'); };
+
+  new SlideEngine();
+  finishSlideRender();
+</script>
+</body>
+</html>

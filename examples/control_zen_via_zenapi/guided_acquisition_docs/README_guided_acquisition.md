@@ -2,10 +2,10 @@
 
 [Open the visual walkthrough](https://sebi06.github.io/smartmicroscopy/examples/control_zen_via_zenapi/guided_acquisition_docs/guided-acquisition.html) for the workflow, output locations, and end-of-run options.
 
-[zenapi_guidedacq.py](../zenapi_guidedacq.py) segments an existing overview CZI,
-converts detected objects into tile regions, and runs a live ZEN detail scan
-for each result row. The overview acquisition is currently simulated with
-a saved image; **the detail acquisitions are real microscope operations**.
+[zenapi_guidedacq.py](../zenapi_guidedacq.py) acquires an overview or loads a saved
+overview CZI, converts detected objects into tile regions, and runs a live ZEN
+detail scan for each result row. Loading a saved overview is the default.
+**Overview acquisition and detail acquisitions are real microscope operations.**
 
 ## Before running
 
@@ -16,8 +16,10 @@ a saved image; **the detail acquisitions are real microscope operations**.
 3. Configure the gateway connection in `my_config.ini` beside the script.
    Keep credentials private. This script currently selects that filename,
    not `config.ini`.
-4. Put the overview at `data/OverViewScan.czi` under the workshop root, or
-   change `filepath_overview` inside `main()`.
+4. With `load_overview=True`, put the overview at `data/OverViewScan.czi` under
+   the workshop root, or change `filepath_overview` inside `main()`. To acquire
+   an overview, set `load_overview=False` and prepare the overview experiment
+   `00000_Overview_15x8_DAPI_5X`, or change `overview_exp`.
 5. Make the detail experiment `ZEN_API_GuidedAcq` available in ZEN, or change
    `detail_exp`. Prepare a suitable tile experiment and check its acquisition
    settings before running.
@@ -47,11 +49,13 @@ the final `asyncio.run(main(...))` call to change behavior. Do not pass
 The current launch call enables moving results and the final comparison:
 
 ```python
-asyncio.run(main(move_results=True, show_summary_plot=True))
+asyncio.run(main(move_results=True, show_summary_plot=True, load_overview=True))
 ```
 
 The parameters of `main()` are:
 
+- `load_overview=True`: load the saved overview. Set it to `False` to run
+  `gca_run_overviewscan()` and use the acquired CZI for metadata and segmentation.
 - `region_type="polygon"`: use object polygons. Alternatives are `"rectangle"`
   and `"ellipse"`, derived from object bounding boxes.
 - `open_detail=False`: when `True`, open every completed detail CZI in ZEN
@@ -64,8 +68,8 @@ The parameters of `main()` are:
 
 Other settings are inside `main()`:
 
-- `show_overview=True` opens the saved overview in ZEN; it does not acquire
-  a new overview. The `gca_run_overviewscan()` invocation is commented out.
+- `show_overview=True` opens the selected overview in ZEN. This display setting
+  is independent of `load_overview`, which selects loading versus acquisition.
 - `show_segresults=True` exports the overview with polygon outlines as PNG.
 - `verbose=False`; enabling it also saves a cloned detail experiment as
   `<detail_exp>_cloned` with override allowed. That experiment remains in
@@ -79,10 +83,12 @@ The stage Z value is the median overview planetable Z value. Polygon and
 bounding-box stage coordinates are converted from micrometres to metres
 for the ZEN tile-region requests.
 
-## What happens
+## Guided Acquisition Workflow
 
-1. Read the saved overview and derive a stage Z position.
-2. Query ZEN's image output directory and segment the overview.
+1. Connect to ZEN and query its image output directory. Acquire an OverView
+   when `load_overview=False`, or load the saved overview by default.
+2. Read the selected overview's stage metadata, derive a stage Z position,
+   and segment the overview.
 3. Copy the overview and export a polygon-overlay preview.
 4. For each detected result row, load and clone the detail experiment,
    clear its tile regions, add the selected region, and await acquisition.
@@ -92,7 +98,8 @@ for the ZEN tile-region requests.
 
 ## Flowchart
 
-The overview is a saved input; the detail-scan loop performs live acquisition.
+The overview can be acquired live or loaded from a saved input.
+The detail-scan loop performs live acquisition in either mode.
 The chart shows the normal workflow and the destination-collision branch.
 Other acquisition or filesystem errors propagate and stop the run.
 
@@ -100,7 +107,11 @@ Other acquisition or filesystem errors propagate and stop the run.
 
 ```mermaid
 flowchart TD
-    A["Read saved overview and stage metadata"] -->|derive Z| B["Segment overview and write labels / CSV"]
+    S{"load_overview?"} -->|true - default| R["Load saved overview"]
+    S -->|false| A["Acquire an OverView"]
+    R -->|read| Z["Read overview stage metadata"]
+    A -->|read acquired CZI| Z
+    Z -->|derive Z| B["Segment overview and write labels / CSV"]
     B -->|copy input| C["Copy overview and optionally export overlay PNG"]
     C -->|iterate results| D{"Next object?"}
     D -->|yes| E["Load and clone detail experiment"]
@@ -139,14 +150,22 @@ sequenceDiagram
     participant ZEN as ZEN services
     participant Plot as Matplotlib
     User->>App: Launch in pixi_smartmic default
+    App->>ZEN: Initialize API and get image output path
+    ZEN-->>App: Image output directory
+    alt load_overview=True (default)
+        App->>Files: Load saved overview
+    else load_overview=False
+        App->>ZEN: Acquire an OverView
+        Note over App,ZEN: gca_run_overviewscan loads, clones, and runs the overview experiment
+        ZEN->>Files: Save overview CZI in ZEN output directory
+        ZEN-->>App: Completed overview output name
+    end
     opt show_overview
-        App->>ZEN: Open saved overview through TCP/IP
+        App->>ZEN: Open selected overview through TCP/IP
     end
     App->>Files: Read overview planetable
     Files-->>App: Stage Z values
-    App->>ZEN: Initialize API and get image output path
-    ZEN-->>App: Image output directory
-    App->>Seg: Segment saved overview
+    App->>Seg: Segment selected overview
     Seg->>Files: Write segmented CZI and object CSV
     Seg-->>App: Object results and polygon coordinates
     App->>Files: Copy overview into run folder
@@ -200,6 +219,8 @@ The run starts under ZEN's configured image output directory:
 ```
 
 Names beginning with `OverViewScan` follow the input overview's basename.
+When acquiring an overview, the basename follows the overview experiment's
+returned output name instead.
 The PNG is created only when `show_segresults=True`. Detail files are
 generated for the detected result rows, so their count varies.
 
