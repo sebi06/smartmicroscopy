@@ -14,7 +14,7 @@ Offline copies are included in [presentation/](presentation/). Keep the
 
 The Pixi workspace is named `pixi_smartmic`. Its `default` environment
 uses Python 3.12 and CPU inference on Windows or Linux. An optional isolated
-`napari-gpu` environment provides NVIDIA GPU inference in napari.
+`napari-gpu` environment provides NVIDIA GPU inference in napari and PyTorch training.
 No local repository checkouts or editable installations are needed.
 
 ## Quick Start
@@ -49,16 +49,20 @@ pixi run --locked -e napari-gpu check-install
 pixi run --locked -e napari-gpu start-napari
 ```
 
-This installs the napari application stack with `napari-czann-segment[gpu]`,
-ONNX Runtime GPU `>=1.19,<1.27`, CUDA 12.4 runtime wheels, and cuDNN 9.1,
-matching the GPU runtime constraints in the development workspace. A compatible
+This installs the napari application stack, CUDA-enabled PyTorch 2.7 and
+torchvision 0.22, czmodel, ONNX Runtime GPU `>=1.19,<1.27`, CUDA 12.8 runtime
+wheels, and cuDNN 9.7. GPU runtimes are managed explicitly instead of using
+`napari-czann-segment[gpu]`, whose CUDA 12.4 pins conflict with this PyTorch
+stack. CUDA 12.8 supports Blackwell GPUs. A compatible
 NVIDIA GPU and driver are required; the runtime wheels do not install a driver.
 `check-install` checks imports and CUDA provider availability, not actual GPU
 inference.
 
 The GPU environment does not inherit the default CPU ONNX Runtime or CPU
-PyTorch packages and does not replace the full workshop environment. Continue
-using the default environment for notebooks and the other workshop tasks.
+PyTorch packages and does not replace the full workshop environment. For GPU
+training, select its `.pixi/envs/napari-gpu/python.exe` notebook kernel on
+Windows (`.pixi/envs/napari-gpu/bin/python` on Linux). Use the default
+environment for the other workshop tasks.
 Installing it does not modify the default environment; always select it
 explicitly with `-e napari-gpu`.
 
@@ -302,8 +306,10 @@ any credentials or private network details before posting it publicly.
 Internet access is required for the initial installation. Workshop packages,
 including `napari-zenapi-streaming`, are installed from published releases,
 not editable developer checkouts. `pixi.lock` records the resolved versions.
-PyTorch and torchvision use the official CPU-only wheel index, avoiding CUDA
-downloads on Linux as well as Windows. Python is kept on the tested 3.12 line.
+The default environment's PyTorch and torchvision use the official CPU-only
+wheel index, avoiding CUDA downloads on Linux as well as Windows. The optional
+GPU environment uses the official CUDA 12.8 wheel index.
+Python is kept on the tested 3.12 line.
 
 The manifest downloads two separate ZEN distributions from release-wheel URLs:
 

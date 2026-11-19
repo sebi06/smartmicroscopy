@@ -17,6 +17,16 @@ and execute cells in order. The environment includes PyTorch, torchvision,
 czmodel, scikit-image, and ONNX Runtime; no separate notebook `pip install`
 is normally needed. GPU access is not required.
 
+For NVIDIA GPU training, run `pixi install --locked -e napari-gpu` and select
+that environment's notebook kernel instead. It includes CUDA-enabled PyTorch,
+torchvision, and czmodel. Restart the kernel after changing environments;
+the training notebook automatically selects CUDA when available.
+
+On Windows, standalone scripts using this GPU environment should import
+`from PIL import Image` before importing `torchvision`. This loads conda's
+compatible JPEG DLL before torchvision's older bundled copy. The training
+notebook already loads Pillow through matplotlib before importing torchvision.
+
 The setup uses [workshop_utils.py](../../workshop_utils.py) to locate
 `pixi.toml`, add the example directory to imports, and report paths.
 For terminal commands use `pixi run --locked ...`: a VS Code interpreter

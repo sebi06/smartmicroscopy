@@ -28,6 +28,79 @@ inside their source rather than through command-line flags.
 
 ## Hardware and experiment examples
 
+### Offline position extraction
+
+[extract_experiment_positions.py](extract_experiment_positions.py) reads the
+well-plate [experiment](../../data/ZEN_API_OMEZARR_Stream_Wellplate.czexp)
+without connecting to ZEN or moving hardware. It reuses
+`zen_api_utils.extract_czexp_plan`, rather than the CZI-image metadata tools
+in czitools.
+
+From the workshop root:
+
+```powershell
+pixi run --locked -e default python examples\control_zen_via_zenapi\extract_experiment_positions.py
+pixi run --locked -e default python examples\control_zen_via_zenapi\extract_experiment_positions.py --output results\experiment_positions.csv
+```
+
+An optional positional argument selects another CZEXP. The default experiment
+contains 24 acquisition positions in 12 wells, with two fields per well.
+Every run displays a formatted terminal table, with coordinates rounded to
+three decimal places. `--output` additionally saves the full-precision CSV.
+CSV rows include block/scene indices, containing well ID and row/column,
+field index within the well, position name/ID, and XYZ stage coordinates in
+micrometers. Block/scene and well row/column indices are zero-based; field
+indices are one-based. These are absolute stage coordinates, not offsets
+from the well center. The zero-based `well_index` numbers acquired wells
+consecutively in first-appearance order within each acquisition block,
+without gaps for skipped wells. In this experiment C4 = 0, D5 = 1, and
+E6 = 2. All positions within a well share its index. It appears in both
+the terminal table and CSV; well row/column still describe the full plate.
+Positions without well assignments have empty well
+fields. Only enabled acquisition positions in active blocks/setups are
+included, not every possible well of the carrier. An existing output CSV is
+replaced; the input experiment is never modified.
+
+For rectangular tile regions, `tile_width_um` and `tile_height_um` contain
+the full region's `ContourSize` in micrometers (not individual camera-tile
+dimensions). Both appear in the terminal table and CSV; they are empty in
+CSV and shown as `-` in the table for single positions and nonrectangular
+regions. Missing or invalid rectangular dimensions raise an error.
+For example:
+
+```powershell
+pixi run --locked -e default python examples\control_zen_via_zenapi\extract_experiment_positions.py data\ZEN_API_OMEZARR_Stream_Wellplate_Tiles.czexp
+```
+
+This [tile-region experiment](../../data/ZEN_API_OMEZARR_Stream_Wellplate_Tiles.czexp)
+contains three regions (A1, C3, D1), each 548.8 by 396.48 micrometers.
+
+#### Use from Python
+
+For filtering, grouping, or notebook display, use the pandas DataFrame helper
+(pandas is already included in the workshop environment). From the workshop root:
+
+```python
+from examples.control_zen_via_zenapi.extract_experiment_positions import (
+    DEFAULT_EXPERIMENT,
+    extract_positions_dataframe,
+)
+
+positions = extract_positions_dataframe(DEFAULT_EXPERIMENT)  # Also accepts a path string.
+well_positions = positions.loc[positions["well_id"] == "C4"]
+positions.to_csv("positions.csv", index=False)
+```
+
+The function returns full-precision values in the same column and acquisition
+order as the CSV, without printing, saving files, or connecting to ZEN. Integer,
+floating-point, and text columns use pandas nullable dtypes; missing values are
+`pd.NA`, so use `isna()` or `notna()` to check them. Units and index conventions
+are unchanged. Invalid experiments raise the same errors as the CLI.
+The existing `extract_positions(path)` remains available for a plain list of
+row dictionaries without pandas conversion.
+
+### Live hardware examples
+
 - **Changers:** [zenapi_changers.py](zenapi_changers.py) queries and changes
   optical components; [zenapi_objectivechanger.py](zenapi_objectivechanger.py)
   demonstrates objective and optovar positions.

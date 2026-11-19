@@ -155,9 +155,10 @@ args = [
     { arg = "output_dir", default = "results/translocation" },
 ]
 
-# Isolated application stack: do not inherit CPU ONNX Runtime or PyTorch.
+# Isolated GPU stack: do not inherit CPU ONNX Runtime or PyTorch.
 [feature.napari-gpu.dependencies]
 python = ">=3.12.16,<3.13"
+libblas = { version = "*", build = "*openblas" }
 python-dateutil = ">=2.8,<3"
 qtpy = "*"
 imagecodecs = ">=2026.6.6"
@@ -174,6 +175,7 @@ colorlog = "*"
 tqdm = "*"
 
 [feature.napari-gpu.pypi-dependencies]
+ipykernel = ">=5.2.0,<7"
 zarr = ">=3.4.0"
 napari = ">=0.10.0"
 pyqt6 = ">=6.7,<6.10"
@@ -186,16 +188,20 @@ ome-zarrpari = "*"
 czitools = { version = ">=0.27.3", extras = ["all"] }
 napari-czitools = "*"
 napari-virtual-reader = "*"
-napari-czann-segment = { version = "*", extras = ["gpu"] }
-# Match the reference workspace's plugin GPU extra: CUDA 12.4 / cuDNN 9.1.
+napari-czann-segment = "*"
+# Manage GPU runtimes explicitly: the plugin's gpu extra pins CUDA 12.4.
+# CUDA 12.8 PyTorch supports Blackwell GPUs and shares these runtimes on Linux.
+torch = { version = ">=2.7.1,<2.8", index = "https://download.pytorch.org/whl/cu128" }
+torchvision = { version = ">=0.22.1,<0.23", index = "https://download.pytorch.org/whl/cu128" }
+czmodel = { version = ">=6.1.3", extras = ["pytorch"] }
 onnxruntime-gpu = { version = ">=1.19,<1.27", extras = ["cuda", "cudnn"] }
-nvidia-cuda-runtime-cu12 = "==12.4.127"
-nvidia-cuda-nvrtc-cu12 = "==12.4.127"
-nvidia-cublas-cu12 = "==12.4.5.8"
-nvidia-cudnn-cu12 = "==9.1.0.70"
-nvidia-cufft-cu12 = "==11.2.1.3"
-nvidia-curand-cu12 = "==10.3.5.147"
-nvidia-nvjitlink-cu12 = "==12.4.127"
+nvidia-cuda-runtime-cu12 = "==12.8.57"
+nvidia-cuda-nvrtc-cu12 = "==12.8.61"
+nvidia-cublas-cu12 = "==12.8.3.14"
+nvidia-cudnn-cu12 = "==9.7.1.26"
+nvidia-cufft-cu12 = "==11.3.3.41"
+nvidia-curand-cu12 = "==10.3.9.55"
+nvidia-nvjitlink-cu12 = "==12.8.61"
 napari-zenapi-streaming = ">=0.0.3"
 zen_api = { url = "https://github.com/zeiss-microscopy/OAD/releases/download/v2026.07.1/zen_api-2026.7.1-py3-none-any.whl" }
 zen_api_utils = { url = "https://github.com/zeiss-microscopy/OAD/releases/download/zen-api-utils-v0.1.0/zen_api_utils-0.1.0-py3-none-any.whl" }
@@ -211,7 +217,8 @@ bioio-imageio = "*"
 env = { QT_API = "pyqt6", PYQTGRAPH_QT_LIB = "PyQt6" }
 
 [feature.napari-gpu.tasks]
-check-install = { cmd = '''python -c "import napari, czitools, onnxruntime; from qtpy import QtCore; from pyqtgraph.Qt import QT_LIB; assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'Expected CUDA-enabled ONNX Runtime'; assert QT_LIB == 'PyQt6', 'Expected PyQt6'; print('GPU imports OK; ONNX Runtime', onnxruntime.__version__, '; Qt', QtCore.qVersion())"''', description = "Check GPU application imports and CUDA provider availability (not a hardware inference test)" }
+# Load conda Pillow's JPEG DLL before torchvision adds its older bundled DLLs.
+check-install = { cmd = '''python -c "from PIL import Image; import torch, torchvision, czmodel, napari, czitools, onnxruntime; from qtpy import QtCore; from pyqtgraph.Qt import QT_LIB; assert torch.version.cuda is not None, 'Expected CUDA-enabled PyTorch'; assert 'CUDAExecutionProvider' in onnxruntime.get_available_providers(), 'Expected CUDA-enabled ONNX Runtime'; assert QT_LIB == 'PyQt6', 'Expected PyQt6'; print('GPU imports OK; PyTorch', torch.__version__, '; ONNX Runtime', onnxruntime.__version__, '; Qt', QtCore.qVersion())"''', description = "Check GPU application and training imports and CUDA provider availability (not a hardware inference test)" }
 start-napari = { cmd = "python -m napari", description = "Open napari with plugins and NVIDIA GPU inference" }
 
 [environments]
