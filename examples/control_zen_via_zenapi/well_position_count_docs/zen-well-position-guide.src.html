@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<title>ZEN well-position acquisition: from experiment to counted CZI</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>
+:root { --accent: #0756a6; }
+header { position: relative; padding-right: 110px; }
+.brand { position: absolute; top: 0; right: 0; width: 84px; height: 84px; image-rendering: auto; }
+h1 { max-width: 32ch; font-size: var(--t-h2); }
+.mode-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-5); }
+.mode { border-top: 1px solid var(--border-bright); padding-top: var(--s-4); min-width: 0; }
+.mode p { font-size: var(--t-small); }
+.mode code, .filetree { overflow-wrap: anywhere; }
+.filetree { font-family: var(--font-mono, monospace); background: var(--surface); padding: var(--s-4); border: 1px solid var(--border-bright); }
+.filetree div { padding: var(--s-2) 0; }
+.indent { padding-left: var(--s-5) !important; }
+.diagram-note { color: var(--text-dim); font-size: var(--t-small); }
+.source-list a { overflow-wrap: anywhere; }
+.failure-strip { border: 1px dashed var(--border-bright); padding: var(--s-4); }
+@media (max-width: 720px) { .mode-grid { grid-template-columns: 1fr; } header { padding-right: 80px; } .brand { width: 64px; height: 64px; } }
+@media print { .ve-toc, .ve-player { display: none; } figure { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<nav class="ve-toc" aria-label="Sections"><div><a href="#flow">Acquisition flow</a><a href="#limits">Well limit</a><a href="#count">Object counting</a><a href="#modes">Run modes</a><a href="#files">Files and failures</a></div><span class="pos"></span></nav>
+<main>
+<header>
+<img class="brand" src="zen-well-position-zeiss.png" alt="ZEISS" width="84" height="84">
+<p class="eyebrow">Smart microscopy · Python + ZEN API</p>
+<h1>Count up to the well target.<br>Skip its remaining positions.</h1>
+<p class="lead">Counts accumulate per well. Once its total reaches the target, skip further positions for that well and continue in list order.</p>
+<p class="meta">Guide to run_experiment_well_positions.py · source inspected 19 November 2026 · not a live microscope validation</p>
+</header>
+
+<section id="flow">
+<p><a href="combined-acquisition-count-flow.html">Open one combined flow diagram: acquisition + cumulative counts + skipping</a>.</p>
+<h2>The loop changes one position, not the original experiment</h2>
+<figure class="ve-steps">
+<ve-flow label="Extract positions, connect to ZEN, reuse a clone for configure, optional export, acquire and count, then close and move all outputs.">
+<ve-node id="plan" at="1 1" sub="Local CZEXP" data-s="1">Extract fields</ve-node>
+<ve-node id="clone" at="2 1" sub="Connect · clone" data-s="2">Prepare run</ve-node>
+<ve-node id="configure" at="2 2" sub="Clear · µm → m" key data-s="3">Set position</ve-node>
+<ve-node id="export" at="3 2" sub="Local CZEXP" data-s="4">Save snapshot</ve-node>
+<ve-node id="acquire" at="2 3" sub="Await ZEN" data-s="5">Acquire CZI</ve-node>
+<ve-node id="count" at="1 3" sub="Otsu · log" data-s="6">Count objects</ve-node>
+<ve-node id="repeat" at="1 2" sub="Check well limit" data-s="6">Next eligible</ve-node>
+<ve-node id="collect" at="1 4" sub="Check · move" data-s="7">Collect files</ve-node>
+<ve-edge from="plan" to="clone" label="prepares" data-s="2"/>
+<ve-edge from="clone" to="configure" label="starts loop" data-s="3"/>
+<ve-edge from="configure" to="export" label="if enabled" async data-s="4"/>
+<ve-edge from="configure" to="acquire" label="acquires" hot data-s="5"/>
+<ve-edge from="acquire" to="count" label="reads CZI" data-s="6"/>
+<ve-edge from="count" to="repeat" label="if more" data-s="6"/>
+<ve-edge from="repeat" to="configure" label="repeats" data-s="6"/>
+<ve-edge from="count" to="collect" label="all succeed" data-s="7"/>
+</ve-flow>
+<div class="ve-player">
+<ol class="ve-cap">
+<li data-n="1/7">Read enabled positions from the local CZEXP once.</li>
+<li data-n="2/7">Create the UTC run folder, connect to ZEN, load the named experiment, and clone it.</li>
+<li data-n="3/7">For each eligible position, clear the clone's positions and add one XYZ position in meters.</li>
+<li data-n="4/7">When enabled, finish exporting the configured clone before acquisition starts.</li>
+<li data-n="5/7">Acquire one CZI; validate and retain ZEN's returned output name.</li>
+<li data-n="6/7">Add the count to its well total; skip later positions for wells at or above the target.</li>
+<li data-n="7/7">After every acquired field and analysis succeeds, close the channel and collect the run's CZIs.</li>
+</ol>
+<button type="button" data-go="-1" aria-label="Previous step">Back</button>
+<button type="button" data-play>Play</button>
+<input type="range" min="1" max="7" value="7" aria-label="Acquisition flow step">
+<button type="button" data-go="1" aria-label="Next step">Next</button>
+</div>
+<figcaption><span class="fig-n">Fig. 1</span>Only eligible fields enter configure → acquire → count; optional export completes before acquisition.</figcaption>
+</figure>
+<p class="diagram-note">The export arrow is a side step, not parallel work. With acquisition disabled, the loop skips acquisition and counting.</p>
+<p><span class="chip warn">Hardware</span> Running acquisition can move the stage and focus. Review the template, coordinates, and gateway configuration first.</p>
+</section>
+
+<section id="limits">
+<h2>Check the well total before touching the clone</h2>
+<figure>
+<ve-flow label="For each listed position, check its accumulated well total. Skip a full well before configuration, diagnostics and acquisition. Otherwise acquire, count and update the well total.">
+<ve-node id="listed" at="1 1" sub="Original order">Read next field</ve-node>
+<ve-node id="guard" at="2 1" sub="Total ≥ target?" key>Check well</ve-node>
+<ve-node id="skip" at="3 1" sub="Advance list">Skip this field</ve-node>
+<ve-node id="runfield" at="2 2" sub="Acquire · count">Process field</ve-node>
+<ve-node id="accumulate" at="1 2" sub="By well ID">Add to total</ve-node>
+<ve-edge from="listed" to="guard" label="checks"/>
+<ve-edge from="guard" to="skip" label="yes: skips"/>
+<ve-edge from="guard" to="runfield" label="else: runs"/>
+<ve-edge from="runfield" to="accumulate" label="adds count"/>
+<ve-edge from="accumulate" to="listed" label="continues"/>
+</ve-flow>
+<figcaption><span class="fig-n">Fig. 2</span>The guard skips configuration, diagnostic export, and acquisition when a named well has reached its target.</figcaption>
+</figure>
+<pre><code>max_objects_per_well: int = 100
+
+if well_id and objects_per_well.get(well_id, 0) &gt;= max_objects_per_well:
+    continue
+
+objects_per_well[well_id] += object_count</code></pre>
+<p>The final addition above applies only to a named well. The implementation initializes its total on the first count.</p>
+<figure>
+<ve-bars max="100" label="Cumulative objects in an illustrative run: A1 has 40 objects after P001, reaches its 100-object target after P002, then B2 starts with an independent total of 30 at P004.">
+<ve-bar value="40">A1 P001</ve-bar>
+<ve-bar value="100" hot>A1 P002</ve-bar>
+<ve-bar value="30">B2 P004</ve-bar>
+</ve-bars>
+<p><span class="chip info">P003 skipped</span> A1 reaches its target after P002. The script skips A1's P003 and acquires B2's P004 next.</p>
+<figcaption><span class="fig-n">Fig. 3</span>Illustrative cumulative counts show that each well has its own total and filenames preserve the original list indices.</figcaption>
+</figure>
+<div class="mode-grid">
+<div class="mode"><h3>At or above target</h3><p>The check uses ≥, not equality. The final acquired image can take the total above the target; it is not truncated.</p></div>
+<div class="mode"><h3>Well IDs persist</h3><p>Totals remain valid even if a well appears again later in the list. A new run starts with empty totals.</p></div>
+<div class="mode"><h3>No shared unknown well</h3><p>Unassigned positions have no cumulative limit. With acquisition disabled, nothing is counted, so all positions remain eligible.</p></div>
+</div>
+<p>The target must be positive; invalid values stop the script before connecting to ZEN. Counts and skip decisions are logged.</p>
+</section>
+
+<section id="count">
+<h2>A count describes one selected XY plane</h2>
+<figure>
+<ve-flow label="A CZI is read as one STCZ selection, reduced to a grayscale XY plane, thresholded using strict greater-than Otsu, cleaned and labeled.">
+<ve-node id="czi" at="1 1" sub="czitools · NumPy">Read CZI</ve-node>
+<ve-node id="xy" at="2 1" sub="One STCZ choice">Keep XY</ve-node>
+<ve-node id="otsu" at="3 1" sub="image > Otsu" key>Bright mask</ve-node>
+<ve-node id="clean" at="3 2" sub="Holes · specks">Clean mask</ve-node>
+<ve-node id="labels" at="2 2" sub="Exclude borders">Label objects</ve-node>
+<ve-node id="log" at="1 2" sub="Well · P · path">Log count</ve-node>
+<ve-edge from="czi" to="xy" label="selects"/>
+<ve-edge from="xy" to="otsu" label="thresholds"/>
+<ve-edge from="otsu" to="clean" label="cleans"/>
+<ve-edge from="clean" to="labels" label="labels"/>
+<ve-edge from="labels" to="log" label="counts"/>
+</ve-flow>
+<figcaption><span class="fig-n">Fig. 4</span>The count uses connected bright regions in one grayscale XY plane, not a stack or a sum over channels.</figcaption>
+</figure>
+<pre><code>count_czi_objects(source)
+
+count_czi_objects(
+    source,
+    planes={"C": (1, 1), "Z": (2, 2)},
+)</code></pre>
+<p>Ranges include both endpoints and use zero-based indices. Omitted axes select their first index. The current acquisition loop calls the helper with its defaults.</p>
+<div class="mode-grid">
+<div class="mode"><h3>One plane only</h3><p>Non-singleton S/T/C/Z axes raise an error. A trailing grayscale sample axis is removed; RGB is rejected.</p></div>
+<div class="mode"><h3>Strict threshold</h3><p>Pixels must be brighter than the Otsu threshold. A constant background does not become foreground.</p></div>
+<div class="mode"><h3>Existing cleanup</h3><p><code>ArrayProcessor.label_objects</code> removes components of at most ten pixels, excludes borders, and uses diagonal connectivity.</p></div>
+</div>
+</section>
+
+<section id="modes">
+<h2>Diagnostics do not require image acquisition</h2>
+<figure>
+<div class="mode-grid">
+<div class="mode"><span class="chip warn">Current settings</span><h3>Acquire + count</h3><pre><code>run_experiment = True
+save_cloned_experiment = False</code></pre><p>Acquire eligible positions, count toward each well's target, then collect CZIs. No diagnostic snapshots.</p></div>
+<div class="mode"><span class="chip info">Inspection</span><h3>Configure + export</h3><pre><code>run_experiment = False
+save_cloned_experiment = True</code></pre><p>Connect to ZEN and configure the clone. Save snapshots without acquiring or moving CZIs.</p></div>
+<div class="mode"><span class="chip info">Combined</span><h3>Export before acquire</h3><pre><code>run_experiment = True
+save_cloned_experiment = True</code></pre><p>Save each eligible configured clone before acquisition. Skipped fields produce no snapshots or CZIs.</p></div>
+</div>
+<figcaption><span class="fig-n">Fig. 5</span>The two switches control acquisition and diagnostics independently; disabling acquisition still connects to ZEN and configures a clone.</figcaption>
+</figure>
+<p>If both switches are false, the script still loads and configures the clone, but creates no run folder.</p>
+</section>
+
+<section id="files">
+<h2>The folder identifies the run; the filename identifies the field</h2>
+<figure>
+<div class="filetree">
+<div>target_folder /</div>
+<div class="indent">&lt;experiment&gt;_wellpositions_YYYY-MM-DD_HH-MM-SS /</div>
+<div class="indent">├─ &lt;experiment&gt;_wellpositions_A1_P004.czi</div>
+<div class="indent">└─ position_0004.czexp <span class="chip info">Optional snapshot</span></div>
+</div>
+<figcaption><span class="fig-n">Fig. 6</span>The UTC timestamp stays in the run folder; the requested CZI name contains the well and one-based original list index.</figcaption>
+</figure>
+<p><code>P004</code> denotes the fourth position in the original list, not necessarily the fourth acquisition. Skipped positions leave index gaps. Missing well assignments use <code>Unassigned</code>. ZEN's returned filename takes precedence.</p>
+<figure>
+<div class="mode-grid">
+<div class="mode"><span class="chip ok">All succeed</span><h3>Close, check, move</h3><p>Check all sources and destinations before any move. Move only CZIs tracked by this run; leave unrelated files alone.</p></div>
+<div class="mode"><span class="chip risk">Acquire or count fails</span><h3>Leave images at source</h3><p>The channel closes after connection setup. The exception propagates, collection is skipped, and existing snapshots remain available.</p></div>
+<div class="mode"><span class="chip warn">Move fails</span><h3>Inspect both locations</h3><p>Collection is not transactional. A disk, permission, or file-lock error can leave CZIs split between source and destination.</p></div>
+</div>
+<figcaption><span class="fig-n">Fig. 7</span>Preflight avoids predictable partial moves, but a failure during the move itself still needs recovery.</figcaption>
+</figure>
+<p class="failure-strip">Safety checks reject an existing run folder, an existing requested source CZI, invalid or reused returned output names, empty diagnostic XML, missing source files, and occupied destination paths.</p>
+</section>
+
+<section class="sources" aria-label="Sources">
+<h2>Source and scope</h2>
+<p>Standalone diagrams:
+<a href="acquisition-flow.svg">acquisition flow</a> ·
+<a href="well-limit-flow.svg">well-limit decision</a> ·
+<a href="well-count-example.svg">cumulative-count example</a> ·
+<a href="object-counting-flow.svg">object-counting flow</a>.</p>
+<div class="source-list">
+<p><a href="../run_experiment_well_positions.py">run_experiment_well_positions.py</a> — settings, main loop, well target, diagnostic export, counting, and file collection.</p>
+<p><a href="../extract_experiment_positions.py">extract_experiment_positions.py</a> — typed positions and stage coordinates in micrometers.</p>
+<p><a href="../processing_tools.py">processing_tools.py</a> — existing cleanup and connected-component labeling.</p>
+</div>
+<p>This guide describes source behavior, not stage travel limits or a validated biological segmentation method. The local CZEXP supplies positions; ZEN separately loads the experiment by its stem.</p>
+</section>
+</main>
+</body>
+</html>

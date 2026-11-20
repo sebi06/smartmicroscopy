@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 1260" role="img" aria-labelledby="title description">
+<title id="title">Acquisition with cumulative object counts per well</title>
+<desc id="description">Read positions, prepare ZEN and empty well totals, then check every position in list order. Skip a named well when its accumulated count reaches the target. Otherwise configure, optionally export, acquire, count and add to that well's total. Return to the next listed position. Close and collect acquired files after successful completion.</desc>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#92a6bb"/></marker>
+</defs>
+<style>
+svg { color-scheme:dark; background:#0d1520; }
+text { font-family:Consolas,'Courier New',monospace; fill:#e3ecf5; text-anchor:middle; font-size:17px; }
+.heading { text-anchor:start; font-size:23px; font-weight:bold; }
+.sub { font-size:14px; fill:#92a6bb; }
+.node { fill:#132031; stroke:#596b87; stroke-width:1.6; }
+.decision { fill:#132c48; stroke:#398cde; stroke-width:2; }
+.total { fill:#132c48; stroke:#398cde; stroke-width:2.5; }
+.optional { stroke-dasharray:6 4; }
+.edge { fill:none; stroke:#92a6bb; stroke-width:1.8; marker-end:url(#arrow); }
+.label { font-size:14px; paint-order:stroke; stroke:#0d1520; stroke-width:6px; stroke-linejoin:round; }
+.note { text-anchor:start; font-size:15px; }
+.rail { fill:none; stroke:#596b87; stroke-width:1; stroke-dasharray:5 5; }
+</style>
+<rect width="1100" height="1260" fill="#0d1520"/>
+<text class="heading" x="35" y="38">Acquire only until each well reaches its cumulative target</text>
+<text class="sub" x="550" y="66">Acquisition-enabled path · original list order · independent totals by well ID</text>
+<path class="edge" d="M510 154V184"/><text class="label" x="564" y="175">prepares</text>
+<path class="edge" d="M510 252V290"/><text class="label" x="568" y="278">iterates</text>
+<path class="edge" d="M510 404V444"/><text class="label" x="573" y="430">yes: reads</text>
+<path class="edge" d="M510 562V602"/><text class="label" x="626" y="588">no / unassigned: configures</text>
+<path class="edge" d="M510 670V708"/><text class="label" x="570" y="696">exports</text>
+<path class="edge" d="M510 776V814"/><text class="label" x="575" y="802">acquires</text>
+<path class="edge" d="M510 882V920"/><text class="label" x="575" y="908">analyzes</text>
+<path class="edge" d="M510 988V1026"/><text class="label" x="580" y="1014">accumulates</text>
+<path class="edge" d="M360 1060H115V347H355"/>
+<text class="label" x="190" y="1044">advances list</text>
+<text class="label" x="196" y="333">checks next</text>
+<path class="edge" d="M665 503H805"/><text class="label" x="735" y="488">yes: skips</text>
+<path class="edge" d="M1015 503H1055V270H510V290"/>
+<text class="label" x="875" y="254">advances without acquisition</text>
+<path class="edge" d="M665 347H750V395H805"/><text class="label" x="750" y="333">no: finishes</text>
+<path class="rail" d="M300 424H710V1120H300Z"/>
+<text class="sub" x="515" y="1143">Repeat for eligible positions; keep original P indices</text>
+<rect class="node" x="360" y="90" width="300" height="64" rx="5"/>
+<text x="510" y="116">Read planned positions</text><text class="sub" x="510" y="139">Validate positive well target</text>
+<rect class="node" x="360" y="184" width="300" height="68" rx="5"/>
+<text x="510" y="211">Prepare run + ZEN clone</text><text class="sub" x="510" y="235">objects_per_well = {}</text>
+<path class="decision" d="M510 290L665 347L510 404L355 347Z"/>
+<text x="510" y="341">More positions</text><text x="510" y="363">in the list?</text>
+<path class="decision" d="M510 444L665 503L510 562L355 503Z"/>
+<text x="510" y="486">Named well AND</text><text x="510" y="508">total ≥ target?</text><text class="sub" x="510" y="530">default target: 100</text>
+<rect class="node" x="805" y="465" width="210" height="76" rx="5"/>
+<text x="910" y="489">Skip this position</text><text class="sub" x="910" y="513">No configure / export</text><text class="sub" x="910" y="531">No CZI / object count</text>
+<rect class="node" x="805" y="351" width="235" height="88" rx="5"/>
+<text x="922" y="376">Close ZEN channel</text><text x="922" y="399">Preflight + move CZIs</text><text class="sub" x="922" y="422">Only tracked run files</text>
+<rect class="node" x="360" y="602" width="300" height="68" rx="5"/>
+<text x="510" y="629">Configure one position</text><text class="sub" x="510" y="653">Clear list · convert µm → m</text>
+<rect class="node optional" x="360" y="708" width="300" height="68" rx="5"/>
+<text x="510" y="735">Export diagnostic CZEXP</text><text class="sub" x="510" y="759">Only when enabled</text>
+<rect class="node" x="360" y="814" width="300" height="68" rx="5"/>
+<text x="510" y="841">Acquire and await CZI</text><text class="sub" x="510" y="865">Use returned output filename</text>
+<rect class="node" x="360" y="920" width="300" height="68" rx="5"/>
+<text x="510" y="947">Count objects + log</text><text class="sub" x="510" y="971">One XY plane · Otsu · cleanup</text>
+<rect class="total" x="360" y="1026" width="300" height="68" rx="5"/>
+<text x="510" y="1053">well total += object count</text><text class="sub" x="510" y="1077">Named wells only · log total</text>
+<text class="note" x="755" y="635">Example: well A1</text>
+<rect x="755" y="658" width="64" height="18" fill="#92a6bb"/><text class="note" x="755" y="702">P001: total 40</text>
+<rect x="755" y="724" width="160" height="18" fill="#398cde"/><text class="note" x="755" y="768">P002: total 100 → target met</text>
+<text class="note" x="755" y="810">P003 in A1 → skip</text>
+<text class="note" x="755" y="840">P004 in B2 → acquire</text>
+<text class="sub" x="880" y="886">Illustrative counts, not a live run</text>
+<text class="note" x="35" y="1188">Totals persist even when a well reappears later. Unassigned positions are never pooled.</text>
+<text class="note" x="35" y="1215">An image can exceed the target. Errors close the channel and skip final file collection.</text>
+<text class="sub" x="550" y="1245">With acquisition disabled: configure / optional export only; no counts accumulate and all fields remain eligible.</text>
+</svg>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<title>ZEN acquisition and cumulative well counting — one flow</title>
+<link rel="stylesheet" href="kit.css" data-ve-kit>
+<style>
+html[data-register="blueprint"] {
+    color-scheme:dark;
+    --bg:#0d1520; --surface:#132031; --border:#22324a; --border-bright:#596b87;
+    --text:#e3ecf5; --text-dim:#92a6bb; --accent:#398cde; --accent-dim:rgba(57,140,222,.14);
+}
+header { position:relative; padding-right:100px; }
+.brand { position:absolute; right:0; top:0; width:72px; height:72px; }
+h1 { font-size:var(--t-h2); max-width:32ch; }
+.flow-frame { overflow-x:auto; background:var(--bg); border:1px solid var(--border-bright); }
+.flow-frame img { display:block; width:100%; min-width:850px; height:auto; }
+.positions-table { overflow-x:auto; }
+.positions-table table { white-space:nowrap; }
+.positions-table tbody + tbody { border-top:2px solid var(--border-bright); }
+.well-label { color:var(--text); font-weight:bold; }
+.terminal-context { color:var(--text-dim); font-family:Consolas,monospace; overflow-wrap:anywhere; font-size:var(--t-small); }
+.position-key { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--s-4); margin-top:var(--s-4); }
+.position-key p { padding:var(--s-4); border:1px solid var(--border-bright); }
+@media (max-width:640px) { .position-key { grid-template-columns:1fr; } }
+@media print { .flow-frame img { min-width:0; } }
+</style>
+</head>
+<body><main>
+<header>
+<img class="brand" src="zen-well-position-zeiss.png" width="72" height="72" alt="ZEISS">
+<p class="eyebrow">ZEN · acquisition + counting</p>
+<h1>One loop: acquire, accumulate,<br>skip completed wells.</h1>
+<p class="lead">Before configuring a position, check its well's cumulative count. At or above the target, skip it and advance through the original list.</p>
+</header>
+<section aria-labelledby="positions-heading">
+<h2 id="positions-heading">Start with the positions stored in the experiment</h2>
+<p>Extract the position list offline before starting acquisition. The supplied output contains two fields in A1 and two in B2.</p>
+<p class="terminal-context">(base) PS F:\Pixi_Projects\zen_czi\smartmicroscopy&gt;</p>
+<pre><code>pixi run --locked -e default python examples\control_zen_via_zenapi\extract_experiment_positions.py "C:\Users\m1srh\Documents\Carl Zeiss\ZEN\Documents\Experiment Setups\ZEN_API_Wellplate_Positionlist.czexp" --output results\experiment_positions.csv</code></pre>
+<figure>
+<div class="ve-table positions-table">
+<table>
+<caption>ZEN_API_Wellplate_Positionlist.czexp · supplied extraction output</caption>
+<thead><tr><th scope="col">Block</th><th scope="col">Scene</th><th scope="col">Well</th><th scope="col">Well index<br><small>0-based</small></th><th scope="col">Row<br><small>0-based</small></th><th scope="col">Column<br><small>0-based</small></th><th scope="col">Field</th><th scope="col">Position</th><th scope="col">X (µm)</th><th scope="col">Y (µm)</th><th scope="col">Z (µm)</th><th scope="col">Tile width<br><small>µm</small></th><th scope="col">Tile height<br><small>µm</small></th></tr></thead>
+<tbody>
+<tr><td class="num">0</td><td class="num">0</td><th scope="row" class="well-label">A1</th><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td>P1</td><td class="num">4500.000</td><td class="num">7533.145</td><td class="num">−8000.000</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td class="num">0</td><td class="num">1</td><th scope="row" class="well-label">A1</th><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">2</td><td>P2</td><td class="num">4500.000</td><td class="num">9466.855</td><td class="num">−8000.000</td><td class="num">—</td><td class="num">—</td></tr>
+ </tbody>
+<tbody>
+<tr><td class="num">0</td><td class="num">2</td><th scope="row" class="well-label">B2</th><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">1</td><td>P1</td><td class="num">13500.000</td><td class="num">16533.145</td><td class="num">−8000.000</td><td class="num">—</td><td class="num">—</td></tr>
+<tr><td class="num">0</td><td class="num">3</td><th scope="row" class="well-label">B2</th><td class="num">1</td><td class="num">1</td><td class="num">1</td><td class="num">2</td><td>P2</td><td class="num">13500.000</td><td class="num">18466.855</td><td class="num">−8000.000</td><td class="num">—</td><td class="num">—</td></tr>
+</tbody>
+</table>
+</div>
+<div class="position-key">
+<p><b>A1</b><br>Local P1 → global <code>P001</code><br>Local P2 → global <code>P002</code></p>
+<p><b>B2</b><br>Local P1 → global <code>P003</code><br>Local P2 → global <code>P004</code></p>
+</div>
+<figcaption>The extracted list supplies stage coordinates and well assignments; cumulative counts determine which of these positions are acquired.</figcaption>
+</figure>
+<p>Coordinates are absolute stage positions in micrometers. Dashes indicate no tile dimensions. The terminal table rounds coordinates; the CSV retains full precision.</p>
+<p>If A1 reaches the target at global P001, skip its P002 and continue with B2 at P003. The flow diagram below uses a separate illustrative position list and counts, not measurements from this extraction.</p>
+</section>
+<section aria-labelledby="flow-heading">
+<h2 id="flow-heading">Apply the cumulative well target during acquisition</h2>
+<figure>
+<div class="flow-frame"><img src="combined-acquisition-count-flow.svg" width="1100" height="1260" alt="Complete acquisition flow with the cumulative well-count decision, skip branch, acquisition and Otsu counting, accumulation loop, and final file collection."></div>
+<figcaption>The same loop acquires eligible fields, adds counts to their well totals, skips completed wells, and finally collects the acquired CZIs.</figcaption>
+</figure>
+</section>
+<p><a href="combined-acquisition-count-flow.svg">Open or download the standalone SVG</a> · <a href="zen-well-position-guide.html">Full visual guide</a> · <a href="../run_experiment_well_positions.py">Python source</a></p>
+<p>This diagram describes the acquisition-enabled path. Diagnostic export remains optional; skipped fields produce neither snapshots nor images.</p>
+</main></body>
+</html>

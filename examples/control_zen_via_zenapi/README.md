@@ -96,11 +96,87 @@ order as the CSV, without printing, saving files, or connecting to ZEN. Integer,
 floating-point, and text columns use pandas nullable dtypes; missing values are
 `pd.NA`, so use `isna()` or `notna()` to check them. Units and index conventions
 are unchanged. Invalid experiments raise the same errors as the CLI.
-The existing `extract_positions(path)` remains available for a plain list of
-row dictionaries without pandas conversion.
+For typed iteration, `extract_positions(path)` now returns immutable `Position`
+dataclasses rather than dictionaries:
+
+```python
+from examples.control_zen_via_zenapi.extract_experiment_positions import extract_positions
+
+for position in extract_positions(DEFAULT_EXPERIMENT):
+    print(position.well_id, position.x, position.y, position.z)
+    if position.tile_region is not None:
+        region = position.tile_region
+        print(region.contour_type, region.width_um, region.height_um)
+```
+
+`Position.x`, `.y`, and `.z` are absolute stage coordinates in micrometers.
+`position.tile_region` is `None` for single positions; otherwise it is a
+`TileRegion` dataclass containing the contour type and rectangular dimensions
+in micrometers. Dimensions are `None` for nonrectangular regions; polygon
+vertices and other shape-specific geometry are not extracted. These offline
+models are distinct from `zen_api_utils.tiles_positions` models, whose
+documented units are meters.
+
+To migrate dictionary-based callers, use attributes such as `position.well_id`
+and `position.x`, or `position.to_record()` for a dictionary using the unchanged
+CSV/DataFrame column names. CLI and DataFrame output are unchanged.
 
 ### Live hardware examples
 
+- **Acquire extracted positions:** [run_experiment_well_positions.py](run_experiment_well_positions.py)
+  has an illustrated [workflow and per-well counting guide](well_position_count_docs/zen-well-position-guide.html)
+  with standalone SVG diagrams and editable HTML source in the same folder. It
+  creates a run folder under its configured `target_folder`, named
+  `<experiment>_wellpositions_YYYY-MM-DD_HH-MM-SS` using UTC. With
+  `run_experiment=True`, CZI output names follow
+  `<experiment>_wellpositions_<well>_P004.czi`, with a one-based, three-digit
+  acquisition index. The timestamp appears only in the run folder name.
+  Positions without a well assignment use `Unassigned`. Existing files with
+  the requested name in ZEN's output directory cause an error before acquisition
+  rather than being overwritten. After all
+  acquisitions succeed, the script moves their CZI files from ZEN's image output
+  directory into that run folder, using the actual filenames returned by ZEN.
+  Unrelated CZI files are left untouched. Existing run folders are never reused;
+  missing files or destination conflicts raise an error before any moves.
+  Acquisition failures leave completed files in ZEN's output directory.
+  A move failure is reported and may leave files split between source and target;
+  consult the logged paths. Extracted stage coordinates in micrometers are
+  converted to meters for ZEN's `Position3D`; the log shows both values.
+  With `save_cloned_experiment=True`, each configured clone is
+  exported before acquisition as `position_0001.czexp`, etc., in the run folder.
+  Open these snapshots in ZEN to inspect the actual acquisition settings.
+  Snapshots are retained on acquisition failure, are never overwritten, and
+  export errors stop the run before acquisition. They are local files, not
+  replacements for the original experiment in ZEN's experiment list.
+  Set `run_experiment=False` to configure and export diagnostics without
+  acquiring images (the script still connects to ZEN). No CZI files are moved
+  in this mode. If both flags are `False`, no run folder is created.
+  After each acquisition, `czitools.read_tools.read_6darray` reads the first
+  scene/time point/channel/Z plane. Bright objects are segmented using Otsu
+  thresholding and the existing `ArrayProcessor` labeling helper (small-hole
+  filling, removal of objects of at most 10 pixels, exclusion of border-touching
+  objects). The count is logged with the well, position, and CZI path. This is
+  a 2D grayscale count, not a sum over channels or a 3D count; RGB is rejected.
+  Counts accumulate per well across acquired positions. Once a well reaches or
+  exceeds `max_objects_per_well` (default: 100), its remaining positions are
+  skipped before configuration, diagnostics, or acquisition. The script continues
+  through the original list to the next eligible well/position; filenames retain
+  the original position indices, so gaps are expected. The last image may take
+  the count above the target. Positions without well assignments are not pooled
+  or skipped by this limit. Totals and skipped positions are logged; the target
+  must be positive. Without acquisition, no counts accumulate and all positions
+  are still configured.
+  `count_czi_objects(path, planes={"C": (1, 1), "Z": (2, 2)})` selects a
+  different channel/Z plane. Ranges are inclusive and zero-based; omitted
+  S/T/C/Z axes default to `(0, 0)`. Select one index per axis, not a stack.
+  Read/analysis errors stop the run and leave acquired files in ZEN's output
+  directory rather than reporting a misleading zero count.
+  The source is organized as settings, image counting, diagnostic export, output
+  collection, and the `main()` orchestration. Position extraction happens once
+  inside `main()` rather than while loading the module. Adjust the settings at
+  the top of the script before starting it.
+  At startup, the complete extracted position list is displayed as a terminal
+  table before connecting to ZEN, using the offline extraction CLI's formatting.
 - **Changers:** [zenapi_changers.py](zenapi_changers.py) queries and changes
   optical components; [zenapi_objectivechanger.py](zenapi_objectivechanger.py)
   demonstrates objective and optovar positions.

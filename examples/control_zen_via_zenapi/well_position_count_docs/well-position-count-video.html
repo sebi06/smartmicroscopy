@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en" data-register="blueprint">
+<head>
+<meta charset="utf-8">
+<title>ZEN: acquire, count, skip completed wells</title>
+<style>
+:root { color-scheme:dark; --bg:#0d1520; --surface:#132031; --text:#e3ecf5; --dim:#92a6bb; --accent:#398cde; --border:#596b87; }
+* { box-sizing:border-box; }
+body { position:relative; width:1280px; height:720px; margin:0; overflow:hidden; background:var(--bg); color:var(--text); font-family:"Segoe UI",sans-serif; }
+body::before { content:""; position:absolute; inset:-48px; background-image:linear-gradient(#22324a40 1px,transparent 1px),linear-gradient(90deg,#22324a40 1px,transparent 1px); background-size:48px 48px; animation:grid-pan 40s linear infinite; }
+@keyframes grid-pan { to { transform:translate(48px,24px); } }
+section[data-say] { position:absolute; inset:0; display:none; padding:48px 64px 120px; }
+section[data-beat], section[data-was] { display:block; }
+section[data-was] { z-index:2; animation:leave .4s forwards; pointer-events:none; }
+@keyframes leave { to { opacity:0; } }
+.brand { position:absolute; top:42px; right:64px; width:72px; height:72px; z-index:4; }
+.eyebrow { color:var(--dim); font:18px Consolas,monospace; letter-spacing:2px; margin:0 0 16px; }
+h1,h2 { font-size:52px; line-height:1.13; margin:0 100px 28px 0; max-width:1020px; }
+.subtitle { font-size:25px; color:var(--dim); margin:0 0 26px; }
+.row { display:flex; align-items:center; gap:24px; margin-top:42px; }
+.node { border:2px solid var(--border); background:var(--surface); padding:26px; min-width:225px; font-size:29px; }
+.node strong { display:block; font-size:34px; margin-bottom:12px; }
+.node small { display:block; color:var(--dim); font-size:22px; line-height:1.5; }
+.key { border-color:var(--accent); background:#132c48; }
+.arrow { color:var(--dim); font:24px Consolas,monospace; text-align:center; }
+.arrow b { display:block; color:var(--accent); font-size:42px; }
+.later { opacity:0; transform:translateY(12px); transition:opacity .6s,transform .6s; }
+[data-beat~="2"] .later { opacity:1; transform:none; }
+.pill { display:inline-block; padding:10px 18px; border:1px solid var(--accent); color:var(--text); font:23px Consolas,monospace; background:#132c48; }
+.table { display:grid; grid-template-columns:120px 170px 170px 1fr; font-size:25px; margin-top:26px; max-width:1080px; }
+.table > div { padding:15px 20px; border-bottom:1px solid var(--border); background:var(--surface); }
+.table .head { color:var(--dim); font-size:21px; }
+code { font-family:Consolas,monospace; }
+.code { font:29px/1.6 Consolas,monospace; padding:22px 28px; background:var(--surface); border:1px solid var(--border); white-space:pre-wrap; }
+.bars { margin-top:24px; width:950px; }
+.bar-row { display:flex; align-items:center; gap:20px; margin:20px 0; font-size:26px; }
+.bar-row span { width:160px; }
+.bar-track { width:620px; border-right:2px dashed var(--dim); height:42px; background:#132031; }
+.bar { height:42px; background:var(--accent); transform-origin:left; animation:grow .8s ease-out both; }
+@keyframes grow { from { transform:scaleX(0); } }
+.note { font-size:23px; color:var(--dim); line-height:1.5; margin-top:26px; }
+.ve-caption { position:absolute !important; z-index:8; bottom:20px !important; left:64px !important; right:64px !important; width:auto !important; max-width:none !important; transform:none !important; text-align:left !important; padding:14px 20px; background:#080f19ed; border-top:1px solid var(--border); color:var(--text); font:26px/1.35 "Segoe UI",sans-serif; margin:0; }
+.scene-tag { position:absolute; right:66px; bottom:120px; font:18px Consolas,monospace; color:var(--dim); }
+.skip { border-style:dashed; color:var(--dim); }
+svg text { font-family:Consolas,monospace; fill:var(--text); }
+@media (prefers-reduced-motion:reduce) { body::before,.bar { animation:none; } .later { transition:none; } }
+</style>
+</head>
+<body>
+<img class="brand" src="zen-well-position-zeiss.png" width="72" height="72" alt="ZEISS">
+
+<section data-say="Stop acquiring a well once its cumulative object count reaches the target. Continue with the next eligible position in the original list." data-hold="1">
+<p class="eyebrow">ZEN · ACQUISITION + COUNTING</p>
+<h1>Count enough objects.<br>Skip the rest of that well.</h1>
+<div class="row"><div class="node key"><strong>Acquire</strong><small>One planned position</small></div><div class="arrow">adds count<b>→</b></div><div class="node key"><strong>Well total</strong><small>Compare with target</small></div><div class="arrow later">if reached<b>→</b></div><div class="node skip later"><strong>Skip</strong><small>Remaining well positions</small></div></div>
+<p class="note">Source: run_experiment_well_positions.py · schematic explanation, not a live microscope recording</p><span class="scene-tag">1 / 8</span>
+</section>
+
+<section data-say="Read the planned positions from the experiment and print the list before connecting to ZEN. In this supplied example, two fields belong to A one and two belong to B two." data-hold="1">
+<p class="eyebrow">START WITH THE EXTRACTED LIST</p><h2>Keep the experiment's position order.</h2>
+<div class="table"><div class="head">Global</div><div class="head">Well</div><div class="head">Local field</div><div class="head">Absolute XYZ, in micrometers</div><div>P001</div><div>A1</div><div>P1</div><div>4500.000 · 7533.145 · −8000.000</div><div>P002</div><div>A1</div><div>P2</div><div>4500.000 · 9466.855 · −8000.000</div><div class="later">P003</div><div class="later">B2</div><div class="later">P1</div><div class="later">13500.000 · 16533.145 · −8000.000</div><div class="later">P004</div><div class="later">B2</div><div class="later">P2</div><div class="later">13500.000 · 18466.855 · −8000.000</div></div>
+<span class="scene-tag">2 / 8</span>
+</section>
+
+<section data-say="Prepare a timestamped output folder, connect to ZEN, and clone the named experiment. Start a separate cumulative total for each well, with a default target of one hundred objects." data-hold="1">
+<p class="eyebrow">PREPARE ONCE PER RUN</p><h2>Reuse one clone.<br>Track each well independently.</h2>
+<div class="row"><div class="node"><strong>Run folder</strong><small>UTC timestamp</small></div><div class="arrow">prepares<b>→</b></div><div class="node"><strong>ZEN clone</strong><small>Original stays unchanged</small></div><div class="node key later"><strong>A1: 0 · B2: 0</strong><small>Target: 100 objects / well</small></div></div>
+<p class="code later">objects_per_well = {}</p><span class="scene-tag">3 / 8</span>
+</section>
+
+<section data-say="Before touching the clone, check the cumulative count for the position's well. If the total is already at or above the target, skip configuration, diagnostic export, and acquisition." data-hold="1">
+<p class="eyebrow">CHECK BEFORE CONFIGURATION</p><h2>Has this well reached its target?</h2>
+<div class="row"><div class="node"><strong>Next position</strong><small>Original list index</small></div><div class="arrow">checks<b>→</b></div><div class="node key"><strong>Total ≥ target?</strong><small>Named wells only</small></div><div class="arrow later">yes: skips<b>→</b></div><div class="node skip later"><strong>No image</strong><small>Advance through list</small></div></div>
+<p class="note later">Totals persist even if the same well appears again later.</p><span class="scene-tag">4 / 8</span>
+</section>
+
+<section data-say="For an eligible position, clear the clone's position list and convert stage coordinates from micrometers to meters. Optionally export the configured experiment, then acquire and await the image." data-hold="1">
+<p class="eyebrow">CONFIGURE → OPTIONAL EXPORT → ACQUIRE</p><h2>Send one valid position to ZEN.</h2>
+<div class="code">Position3D(x=x_um * 1e-6,<br>           y=y_um * 1e-6,<br>           z=z_um * 1e-6)</div>
+<div class="row later"><div class="pill">Configure clone</div><div class="arrow">exports<b>→</b></div><div class="pill">Optional CZEXP</div><div class="arrow">awaits<b>→</b></div><div class="pill">Acquired CZI</div></div>
+<span class="scene-tag">5 / 8</span>
+</section>
+
+<section data-say="Read one grayscale image plane with czitools, then use Otsu thresholding and connected object labeling. Log the count and add it to the cumulative total for that well." data-hold="1">
+<p class="eyebrow">COUNT AFTER EACH ACQUISITION</p><h2>Analyze one plane.<br>Add its count to the well total.</h2>
+<div class="row"><div class="node"><strong>CZI → XY</strong><small>Default: first S / T / C / Z</small></div><div class="arrow">segments<b>→</b></div><div class="node"><strong>Otsu + cleanup</strong><small>Bright connected objects</small></div><div class="arrow later">accumulates<b>→</b></div><div class="node key later"><strong>Well total</strong><small>Previous + new count</small></div></div>
+<p class="note">Remove small objects and border-touching objects; this is a two-dimensional count, not a stack count.</p><span class="scene-tag">6 / 8</span>
+</section>
+
+<section data-say="For example, the first position in A one could count one hundred and ten objects, exceeding the target of one hundred. Skip its second position and continue at B two, whose cumulative total starts independently." data-hold="2">
+<p class="eyebrow">ILLUSTRATIVE COUNTS · NOT MEASURED DATA</p><h2>A1 reaches the target.<br>B2 is still eligible.</h2>
+<div class="bars"><div class="bar-row"><span>A1 · P001</span><div class="bar-track"><div class="bar" style="width:100%"></div></div><b>110</b></div><div class="bar-row"><span>Target</span><div class="bar-track"><div class="bar" style="width:90.9%;background:#92a6bb"></div></div><b>100</b></div></div>
+<div class="row later"><div class="node skip"><strong>A1 · P002</strong><small>Skip: target reached</small></div><div class="arrow">continues<b>→</b></div><div class="node key"><strong>B2 · P003</strong><small>Acquire: total starts at zero</small></div></div>
+<span class="scene-tag">7 / 8</span>
+</section>
+
+<section data-say="After all eligible acquisitions and analyses succeed, close the channel and move only this run's image files into its output folder. Remember the loop: check the well, acquire if needed, count, accumulate, and continue." data-hold="2">
+<p class="eyebrow">COMPLETE THE RUN</p><h2>Check → acquire → count → accumulate.</h2>
+<div class="row"><div class="node"><strong>Close channel</strong><small>Also closes on failure</small></div><div class="arrow">on success<b>→</b></div><div class="node"><strong>Preflight files</strong><small>Sources + destinations</small></div><div class="arrow">moves<b>→</b></div><div class="node key"><strong>Run folder</strong><small>Only tracked CZIs</small></div></div>
+<p class="code later">..._wellpositions_B2_P003.czi</p><p class="note later">Skipped positions keep gaps in filename indices. Acquisition or analysis failures leave CZIs in ZEN's output folder.</p><span class="scene-tag">8 / 8</span>
+</section>
+</body>
+</html>

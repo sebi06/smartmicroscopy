@@ -17,6 +17,15 @@ uses Python 3.12 and CPU inference on Windows or Linux. An optional isolated
 `napari-gpu` environment provides NVIDIA GPU inference in napari and PyTorch training.
 No local repository checkouts or editable installations are needed.
 
+**CPU-only is the default.** The standard installation uses CPU-only PyTorch
+and ONNX Runtime; no NVIDIA GPU or CUDA is required. GPU support is an
+explicit opt-in: install and run the separate environment with `-e napari-gpu`.
+
+The workshop includes `ngff-zarr`, but not the `ngff-zarr-mcp` server.
+The server pulls in `ngff-zarr[cli]`, whose `imagecodecs<2026.5.0` requirement
+conflicts with the newer codecs required by `napari-virtual-reader`/`refkv`.
+If needed, install the MCP server in a separate environment.
+
 ## Quick Start
 
 With Git, Git LFS, and Pixi installed, run:
@@ -39,9 +48,10 @@ steps below. For individual examples, see
 [translocation](examples/translocation/README.md), and
 [ZEN control](examples/control_zen_via_zenapi/README.md).
 
-### Optional NVIDIA GPU Environment
+### Optional NVIDIA GPU Environment (Explicit Opt-In)
 
-From the repository directory, run:
+Skip this section for CPU-only use. GPU support is not installed by the
+standard command above. To opt in, run from the repository directory:
 
 ```text
 pixi install --locked -e napari-gpu
@@ -181,11 +191,15 @@ These downloads require additional disk space and network access. GitHub
 LFS storage, bandwidth, and per-file limits depend on the repository owner's
 plan. If datasets are distributed separately, obtain them from the instructor.
 
-### 4. Create the Workshop Environment
+### 4. Create the CPU-Only Workshop Environment (Default)
 
 ```powershell
 pixi install --locked
 ```
+
+This selects the CPU-only `default` environment, not `napari-gpu`.
+You can also select CPU explicitly with `pixi install --locked -e default`;
+use `-e default` with `pixi run` commands as well to select it explicitly.
 
 The first installation can take several minutes. Pixi downloads Python and
 the required packages into `.pixi/envs/default/`. Let the command finish
@@ -236,8 +250,9 @@ See [Translocation Assay](#translocation-assay) for custom input arguments.
 
 Open a terminal in your cloned repository and run `pixi run start-napari`
 or another workshop task. You do not need to reinstall Git or Pixi each time.
-For an interactive shell, run `pixi shell`. There is only one environment,
-`default`; `pixi run --locked` selects it automatically.
+For an interactive shell, run `pixi shell`. Commands without `-e` select the
+CPU-only `default` environment automatically. The optional GPU environment
+must always be selected explicitly with `-e napari-gpu`.
 
 ### Shared Notebook Setup
 

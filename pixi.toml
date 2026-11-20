@@ -1,9 +1,14 @@
-# Smart Microscopy workshop: default CPU and optional GPU, no source checkouts.
+# Smart Microscopy workshop: CPU-only by default, GPU requires explicit opt-in.
+# No NVIDIA GPU, CUDA, or source checkouts are required for the default environment.
 # Distribute this manifest together with pixi.lock and the workshop examples.
-# Install: pixi install --locked
-# Launch:  pixi run --locked start-napari
-# GPU:     pixi install --locked -e napari-gpu
-# Launch:  pixi run --locked -e napari-gpu start-napari
+# CPU install (default): pixi install --locked
+# CPU check:             pixi run --locked check-install
+# CPU launch:            pixi run --locked start-napari
+# To select CPU explicitly, add -e default to each command above.
+# Optional GPU install:  pixi install --locked -e napari-gpu
+# GPU check:             pixi run --locked -e napari-gpu check-install
+# GPU launch:            pixi run --locked -e napari-gpu start-napari
+# GPU support is installed and used only when selecting -e napari-gpu.
 
 [workspace]
 authors = ["Rhode, Sebastian <sebastian.rhode@zeiss.com>"]
@@ -100,6 +105,8 @@ bioio-ome-tiff = "*"
 bioio-imageio = "*"
 
 ngff-zarr = ">=0.52.0"
+# Keep ngff-zarr-mcp out of this environment: its ngff-zarr[cli] dependency
+# requires imagecodecs<2026.5.0, incompatible with napari-virtual-reader/refkv.
 ome-zarr = ">=0.19.2"
 ome-writers = { version = ">=0.3.2", extras = ["acquire-zarr"] }
 ngio = ">=0.5.10"
